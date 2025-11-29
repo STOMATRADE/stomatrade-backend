@@ -7,15 +7,21 @@ import { PaginatedResponseDto, PaginationDto } from '../../common/dto/pagination
 
 @Injectable()
 export class ProjectsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(createProjectDto: CreateProjectDto): Promise<ProjectResponseDto> {
-    return this.prisma.project.create({
+    const { sendDate, ...rest } = createProjectDto;
+
+    const res = await this.prisma.project.create({
       data: {
-        ...createProjectDto,
-        sendDate: new Date(createProjectDto.sendDate),
+        ...rest,
+        sendDate: new Date(sendDate),
       },
     });
+
+    return {
+      ...res
+    }
   }
 
   async findAll(pagination: PaginationDto): Promise<PaginatedResponseDto<ProjectResponseDto>> {
@@ -36,7 +42,7 @@ export class ProjectsService {
   }
 
   async findOne(id: string): Promise<ProjectResponseDto> {
-    const project = await this.prisma.project.findUnique({
+    const project = await this.prisma.project.findFirst({
       where: { id, deleted: false },
     });
 
@@ -103,8 +109,6 @@ export class ProjectsService {
       data: { deleted: true },
     });
 
-    return {
-      ... res
-    }
+    return res;
   }
 }

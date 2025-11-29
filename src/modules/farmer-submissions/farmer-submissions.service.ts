@@ -59,8 +59,15 @@ export class FarmerSubmissionsService {
       },
     });
 
+    const encodedCalldata = this.stomaTradeContract.getMintFarmerCalldata(
+      dto.commodity,
+    );
+
     this.logger.log(`Farmer submission created: ${submission.id}`);
-    return submission;
+    return {
+      ...submission,
+      encodedCalldata,
+    };
   }
 
   /**

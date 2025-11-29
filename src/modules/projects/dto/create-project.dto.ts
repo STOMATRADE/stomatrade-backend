@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsDateString,
   IsInt,
@@ -11,55 +11,44 @@ import {
 } from 'class-validator';
 
 export class CreateProjectDto {
-  @ApiProperty({
-    description: 'NFT Token ID (optional, set after blockchain minting)',
-    example: 3001,
-    required: false,
-  })
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  tokenId?: number;
+  @ApiProperty({ description: 'Collector ID', example: '550e8400-e29b-41d4-a716-446655440000' })
+  @IsUUID()
+  @IsNotEmpty()
+  collectorId: string;
+
+  @ApiProperty({ description: 'Farmer ID', example: '770e8400-e29b-41d4-a716-446655440002' })
+  @IsUUID()
+  @IsNotEmpty()
+  farmerId: string;
+
+  @ApiProperty({ description: 'Land ID', example: '880e8400-e29b-41d4-a716-446655440003' })
+  @IsUUID()
+  @IsNotEmpty()
+  landId: string;
 
   @ApiProperty({
-    description: 'Type of commodity (e.g., Rice, Coffee, Corn)',
-    example: 'Rice',
+    description: 'Project name/title',
+    example: 'Coffee Arabica Q1 Harvest',
+  })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiProperty({
+    description: 'Commodity type (e.g., Rice, Coffee, Corn)',
+    example: 'Coffee',
   })
   @IsString()
   @IsNotEmpty()
   commodity: string;
 
   @ApiProperty({
-    description: 'Volume in units (kg, tons, etc.)',
+    description: 'Volume in base units (e.g., kg)',
     example: 1000.5,
   })
   @IsNumber()
-  @Min(0.1)
+  @Min(0.000000000000000001)
   volume: number;
-
-  @ApiProperty({
-    description: 'Quality grade (A, B, C, A+, Premium)',
-    example: 'A',
-  })
-  @IsString()
-  @IsNotEmpty()
-  gradeQuality: string;
-
-  @ApiProperty({
-    description: 'Associated farmer ID',
-    example: '770e8400-e29b-41d4-a716-446655440002',
-  })
-  @IsUUID()
-  @IsNotEmpty()
-  farmerId: string;
-
-  @ApiProperty({
-    description: 'Associated land ID',
-    example: '880e8400-e29b-41d4-a716-446655440003',
-  })
-  @IsUUID()
-  @IsNotEmpty()
-  landId: string;
 
   @ApiProperty({
     description: 'Expected send/delivery date (ISO 8601)',
@@ -68,4 +57,81 @@ export class CreateProjectDto {
   @IsDateString()
   @IsNotEmpty()
   sendDate: string;
+}
+
+export class UpdateProjectDto {
+  @ApiPropertyOptional({
+    description: 'NFT Token ID (set after blockchain minting)',
+    example: 3001,
+  })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  tokenId?: number;
+
+  @ApiPropertyOptional({ description: 'Collector ID', example: '550e8400-e29b-41d4-a716-446655440000' })
+  @IsUUID()
+  @IsOptional()
+  collectorId?: string;
+
+  @ApiPropertyOptional({ description: 'Farmer ID', example: '770e8400-e29b-41d4-a716-446655440002' })
+  @IsUUID()
+  @IsOptional()
+  farmerId?: string;
+
+  @ApiPropertyOptional({ description: 'Land ID', example: '880e8400-e29b-41d4-a716-446655440003' })
+  @IsUUID()
+  @IsOptional()
+  landId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Project name/title',
+    example: 'Coffee Arabica Q1 Harvest',
+  })
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiPropertyOptional({
+    description: 'Commodity type (e.g., Rice, Coffee, Corn)',
+    example: 'Coffee',
+  })
+  @IsString()
+  @IsOptional()
+  commodity?: string;
+
+  @ApiPropertyOptional({
+    description: 'Volume in base units (e.g., kg)',
+    example: 1000.5,
+  })
+  @IsNumber()
+  @Min(0.000000000000000001)
+  @IsOptional()
+  volume?: number;
+
+  @ApiPropertyOptional({
+    description: 'Decimals used for volume representation',
+    example: 18,
+  })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  volumeDecimal?: number;
+
+  @ApiPropertyOptional({
+    description: 'Profit share percentage (e.g., 20 for 20%)',
+    example: 20,
+  })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  profitShare?: number;
+
+  @ApiPropertyOptional({
+    description: 'Expected send/delivery date (ISO 8601)',
+    example: '2025-02-15T08:00:00.000Z',
+  })
+  @IsDateString()
+  @IsOptional()
+  sendDate?: string;
 }
