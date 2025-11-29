@@ -11,49 +11,37 @@ import {
 } from 'class-validator';
 
 export class CreateProjectDto {
-  @ApiProperty({ description: 'Collector ID', example: '550e8400-e29b-41d4-a716-446655440000' })
+  @ApiProperty({example: '550e8400-e29b-41d4-a716-446655440000'})
   @IsUUID()
   @IsNotEmpty()
   collectorId: string;
 
-  @ApiProperty({ description: 'Farmer ID', example: '770e8400-e29b-41d4-a716-446655440002' })
+  @ApiProperty({example: '770e8400-e29b-41d4-a716-446655440002'})
   @IsUUID()
   @IsNotEmpty()
   farmerId: string;
 
-  @ApiProperty({ description: 'Land ID', example: '880e8400-e29b-41d4-a716-446655440003' })
+  @ApiProperty({example: '880e8400-e29b-41d4-a716-446655440003'})
   @IsUUID()
   @IsNotEmpty()
   landId: string;
 
-  @ApiProperty({
-    description: 'Project name/title',
-    example: 'Coffee Arabica Q1 Harvest',
-  })
+  @ApiProperty({example: 'Coffee Arabica Q1 Harvest',})
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({
-    description: 'Commodity type (e.g., Rice, Coffee, Corn)',
-    example: 'Coffee',
-  })
+  @ApiProperty({example: 'Coffee',})
   @IsString()
   @IsNotEmpty()
   commodity: string;
 
-  @ApiProperty({
-    description: 'Volume in base units (e.g., kg)',
-    example: 1000.5,
-  })
+  @ApiProperty({example: 1000.5,})
   @IsNumber()
   @Min(0.000000000000000001)
   volume: number;
 
-  @ApiProperty({
-    description: 'Expected send/delivery date (ISO 8601)',
-    example: '2025-02-15T08:00:00.000Z',
-  })
+  @ApiProperty({example: '2025-02-15T08:00:00.000Z',})
   @IsDateString()
   @IsNotEmpty()
   sendDate: string;

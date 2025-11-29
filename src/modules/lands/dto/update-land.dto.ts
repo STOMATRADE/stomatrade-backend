@@ -3,7 +3,6 @@ import { IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdateLandDto {
   @ApiProperty({
-    description: 'NFT Token ID',
     example: 2001,
     required: false,
   })
@@ -13,7 +12,6 @@ export class UpdateLandDto {
   tokenId?: number;
 
   @ApiProperty({
-    description: 'GPS Latitude coordinate',
     example: -6.201,
     required: false,
   })
@@ -22,7 +20,6 @@ export class UpdateLandDto {
   latitude?: number;
 
   @ApiProperty({
-    description: 'GPS Longitude coordinate',
     example: 106.817,
     required: false,
   })
@@ -31,7 +28,6 @@ export class UpdateLandDto {
   longitude?: number;
 
   @ApiProperty({
-    description: 'Land address/location description',
     example: 'Plot A1-Updated, Desa Makmur',
     required: false,
   })

@@ -3,7 +3,6 @@ import { IsNotEmpty, IsString, IsUUID, Length } from 'class-validator';
 
 export class CreateCollectorDto {
   @ApiProperty({
-    description: 'Associated user ID',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @IsUUID()
@@ -11,7 +10,6 @@ export class CreateCollectorDto {
   userId: string;
 
   @ApiProperty({
-    description: 'NIK (Nomor Induk Kependudukan) - 16 digits',
     example: '3201234567890123',
     minLength: 16,
     maxLength: 16,
@@ -22,7 +20,6 @@ export class CreateCollectorDto {
   nik: string;
 
   @ApiProperty({
-    description: 'Collector full name',
     example: 'John Doe',
   })
   @IsString()
@@ -30,7 +27,6 @@ export class CreateCollectorDto {
   name: string;
 
   @ApiProperty({
-    description: 'Collector address',
     example: 'Jl. Raya No. 123, Jakarta',
   })
   @IsString()

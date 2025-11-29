@@ -109,5 +109,4 @@ export class RefundsController {
   getUserRefundClaims(@Param('userId') userId: string) {
     return this.refundsService.getUserRefundClaims(userId);
   }
-}
-
+}

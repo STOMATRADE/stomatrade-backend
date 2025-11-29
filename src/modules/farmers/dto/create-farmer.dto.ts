@@ -14,7 +14,6 @@ import { GENDER } from '@prisma/client';
 
 export class CreateFarmerDto {
   @ApiProperty({
-    description: 'Associated collector ID',
     example: '660e8400-e29b-41d4-a716-446655440001',
   })
   @IsUUID()
@@ -22,7 +21,6 @@ export class CreateFarmerDto {
   collectorId: string;
 
   @ApiProperty({
-    description: 'NFT Token ID (optional, set after minting)',
     example: 1001,
     required: false,
   })
@@ -31,7 +29,6 @@ export class CreateFarmerDto {
   tokenId?: number;
 
   @ApiProperty({
-    description: 'NIK (Nomor Induk Kependudukan) - 16 digits',
     example: '3201234567890124',
   })
   @IsString()
@@ -40,7 +37,6 @@ export class CreateFarmerDto {
   nik: string;
 
   @ApiProperty({
-    description: 'Farmer full name',
     example: 'Farmer Jane',
   })
   @IsString()
@@ -48,7 +44,6 @@ export class CreateFarmerDto {
   name: string;
 
   @ApiProperty({
-    description: 'Farmer age (18-100)',
     example: 35,
     minimum: 18,
     maximum: 100,
@@ -59,7 +54,6 @@ export class CreateFarmerDto {
   age: number;
 
   @ApiProperty({
-    description: 'Farmer gender',
     enum: GENDER,
     example: 'FEMALE',
   })
@@ -68,7 +62,6 @@ export class CreateFarmerDto {
   gender: GENDER;
 
   @ApiProperty({
-    description: 'Farmer address',
     example: 'Desa Makmur, Kec. Subur',
   })
   @IsString()

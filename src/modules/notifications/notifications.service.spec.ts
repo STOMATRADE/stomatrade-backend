@@ -81,7 +81,7 @@ describe('NotificationsService', () => {
 
         const result = await service.findAllChannels({ page: 1, limit: 10 });
 
-        expect(result.data).toHaveLength(1);
+        expect(result.items).toHaveLength(1);
       });
     });
 
@@ -142,7 +142,7 @@ describe('NotificationsService', () => {
 
         const result = await service.findAllNotifications({ page: 1, limit: 10 });
 
-        expect(result.data).toHaveLength(1);
+        expect(result.items).toHaveLength(1);
       });
     });
 
@@ -197,7 +197,7 @@ describe('NotificationsService', () => {
           limit: 10,
         });
 
-        expect(result.data).toHaveLength(1);
+        expect(result.items).toHaveLength(1);
       });
     });
 

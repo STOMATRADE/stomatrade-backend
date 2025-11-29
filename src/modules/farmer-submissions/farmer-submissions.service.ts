@@ -20,13 +20,9 @@ export class FarmerSubmissionsService {
     private readonly stomaTradeContract: StomaTradeContractService,
   ) {}
 
-  /**
-   * Submit a farmer for NFT minting approval
-   */
   async create(dto: CreateFarmerSubmissionDto) {
     this.logger.log(`Creating farmer submission for farmer ${dto.farmerId}`);
 
-    // Check if farmer exists
     const farmer = await this.prisma.farmer.findUnique({
       where: { id: dto.farmerId },
     });
@@ -35,7 +31,6 @@ export class FarmerSubmissionsService {
       throw new NotFoundException(`Farmer with ID ${dto.farmerId} not found`);
     }
 
-    // Check if farmer already has a submission
     const existingSubmission = await this.prisma.farmerSubmission.findUnique({
       where: { farmerId: dto.farmerId },
     });
@@ -46,7 +41,6 @@ export class FarmerSubmissionsService {
       );
     }
 
-    // Create submission
     const submission = await this.prisma.farmerSubmission.create({
       data: {
         farmerId: dto.farmerId,
@@ -70,9 +64,6 @@ export class FarmerSubmissionsService {
     };
   }
 
-  /**
-   * Get all farmer submissions with optional status filter
-   */
   async findAll(status?: SUBMISSION_STATUS) {
     const where = status ? { status, deleted: false } : { deleted: false };
 
@@ -88,9 +79,6 @@ export class FarmerSubmissionsService {
     });
   }
 
-  /**
-   * Get a single farmer submission by ID
-   */
   async findOne(id: string) {
     const submission = await this.prisma.farmerSubmission.findUnique({
       where: { id },
@@ -109,23 +97,17 @@ export class FarmerSubmissionsService {
     return submission;
   }
 
-  /**
-   * Approve farmer submission and mint NFT on blockchain
-   */
   async approve(id: string, dto: ApproveFarmerSubmissionDto) {
     this.logger.log(`Approving farmer submission ${id}`);
 
-    // Get submission
     const submission = await this.findOne(id);
 
-    // Check status
     if (submission.status !== SUBMISSION_STATUS.SUBMITTED) {
       throw new BadRequestException(
         `Cannot approve submission with status: ${submission.status}`,
       );
     }
 
-    // Update status to APPROVED
     await this.prisma.farmerSubmission.update({
       where: { id },
       data: {
@@ -134,7 +116,6 @@ export class FarmerSubmissionsService {
       },
     });
 
-    // Mint NFT on blockchain
     try {
       this.logger.log(
         `Minting Farmer NFT for commodity: ${submission.commodity}`,
@@ -144,7 +125,6 @@ export class FarmerSubmissionsService {
         submission.commodity,
       );
 
-      // Create blockchain transaction record
       const blockchainTx = await this.prisma.blockchainTransaction.create({
         data: {
           transactionHash: txResult.hash,
@@ -157,7 +137,6 @@ export class FarmerSubmissionsService {
         },
       });
 
-      // Parse event to get minted token ID
       let mintedTokenId: number | null = null;
       if (txResult.receipt) {
         const farmerMintedEvent = this.stomaTradeContract.getEventFromReceipt(
@@ -180,7 +159,6 @@ export class FarmerSubmissionsService {
         }
       }
 
-      // Update submission with minted status and token ID
       const updatedSubmission = await this.prisma.farmerSubmission.update({
         where: { id },
         data: {
@@ -194,7 +172,6 @@ export class FarmerSubmissionsService {
         },
       });
 
-      // Update farmer with token ID
       if (mintedTokenId !== null) {
         await this.prisma.farmer.update({
           where: { id: submission.farmerId },
@@ -209,7 +186,6 @@ export class FarmerSubmissionsService {
     } catch (error) {
       this.logger.error('Error minting Farmer NFT', error);
 
-      // Update status back to SUBMITTED on error
       await this.prisma.farmerSubmission.update({
         where: { id },
         data: {
@@ -224,23 +200,17 @@ export class FarmerSubmissionsService {
     }
   }
 
-  /**
-   * Reject farmer submission
-   */
   async reject(id: string, dto: RejectFarmerSubmissionDto) {
     this.logger.log(`Rejecting farmer submission ${id}`);
 
-    // Get submission
     const submission = await this.findOne(id);
 
-    // Check status
     if (submission.status !== SUBMISSION_STATUS.SUBMITTED) {
       throw new BadRequestException(
         `Cannot reject submission with status: ${submission.status}`,
       );
     }
 
-    // Update status to REJECTED
     const rejectedSubmission = await this.prisma.farmerSubmission.update({
       where: { id },
       data: {

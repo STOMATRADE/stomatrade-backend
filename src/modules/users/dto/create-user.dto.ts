@@ -4,7 +4,6 @@ import { ROLES } from '@prisma/client';
 
 export class CreateUserDto {
   @ApiProperty({
-    description: 'Wallet address of the user',
     example: '0x1234567890abcdef1234567890abcdef12345678',
   })
   @IsString()
@@ -12,7 +11,6 @@ export class CreateUserDto {
   walletAddress: string;
 
   @ApiProperty({
-    description: 'Role of the user',
     enum: ROLES,
     example: ROLES.COLLECTOR,
   })

@@ -149,5 +149,4 @@ export class AuthController {
   refreshToken(@Request() req: any) {
     return this.authService.refreshToken(req.user.sub);
   }
-}
-
+}

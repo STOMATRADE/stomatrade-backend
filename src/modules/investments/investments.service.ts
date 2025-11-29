@@ -17,17 +17,11 @@ export class InvestmentsService {
     private readonly stomaTradeContract: StomaTradeContractService,
   ) {}
 
-  /**
-   * Create an investment and call blockchain
-   * Note: In production, this should be called by the investor's wallet, not the platform
-   * For now, we'll use the platform wallet for demo purposes
-   */
   async create(dto: CreateInvestmentDto) {
     this.logger.log(
       `Creating investment for user ${dto.userId} in project ${dto.projectId}`,
     );
 
-    // Verify user exists
     const user = await this.prisma.user.findUnique({
       where: { id: dto.userId },
     });
@@ -36,7 +30,6 @@ export class InvestmentsService {
       throw new NotFoundException(`User with ID ${dto.userId} not found`);
     }
 
-    // Verify project exists and has been minted (has tokenId)
     const project = await this.prisma.project.findUnique({
       where: { id: dto.projectId },
       include: {
@@ -54,7 +47,6 @@ export class InvestmentsService {
       );
     }
 
-    // Create investment record (initially without receipt token)
     const investment = await this.prisma.investment.create({
       data: {
         userId: dto.userId,
@@ -72,17 +64,14 @@ export class InvestmentsService {
         `Calling blockchain invest() - ProjectId: ${project.tokenId}, Amount: ${dto.amount}`,
       );
 
-      // Convert to bigint
       const projectTokenId = BigInt(project.tokenId);
       const amount = BigInt(dto.amount);
 
-      // Call smart contract invest function
       const txResult = await this.stomaTradeContract.invest(
         projectTokenId,
         amount,
       );
 
-      // Parse event to get receipt token ID
       let receiptTokenId: number | null = null;
       if (txResult.receipt) {
         const investedEvent = this.stomaTradeContract.getEventFromReceipt(
@@ -107,7 +96,6 @@ export class InvestmentsService {
         }
       }
 
-      // Update investment with blockchain data
       const updatedInvestment = await this.prisma.investment.update({
         where: { id: investment.id },
         data: {
@@ -121,7 +109,6 @@ export class InvestmentsService {
         },
       });
 
-      // Update user's portfolio
       await this.updateUserPortfolio(dto.userId);
 
       this.logger.log(`Investment created successfully: ${investment.id}`);
@@ -129,7 +116,6 @@ export class InvestmentsService {
     } catch (error) {
       this.logger.error('Error processing investment on blockchain', error);
 
-      // Delete the investment record on error
       await this.prisma.investment.delete({
         where: { id: investment.id },
       });
@@ -140,9 +126,6 @@ export class InvestmentsService {
     }
   }
 
-  /**
-   * Get all investments with optional filters
-   */
   async findAll(userId?: string, projectId?: string) {
     const where: any = { deleted: false };
 
@@ -171,9 +154,6 @@ export class InvestmentsService {
     });
   }
 
-  /**
-   * Get a single investment by ID
-   */
   async findOne(id: string) {
     const investment = await this.prisma.investment.findUnique({
       where: { id },
@@ -197,9 +177,6 @@ export class InvestmentsService {
     return investment;
   }
 
-  /**
-   * Get investment statistics for a project
-   */
   async getProjectStats(projectId: string) {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
@@ -235,9 +212,6 @@ export class InvestmentsService {
     };
   }
 
-  /**
-   * Update user's investment portfolio
-   */
   private async updateUserPortfolio(userId: string) {
     this.logger.log(`Updating portfolio for user ${userId}`);
 
@@ -261,7 +235,6 @@ export class InvestmentsService {
       return sum + claimed;
     }, BigInt(0));
 
-    // For now, totalProfit is same as totalClaimed (will be updated when profit distribution is implemented)
     const totalProfit = totalClaimed;
 
     const activeInvestments = investments.filter(
@@ -273,7 +246,6 @@ export class InvestmentsService {
         ? (Number(totalProfit) / Number(totalInvested)) * 100
         : 0;
 
-    // Upsert portfolio
     await this.prisma.investmentPortfolio.upsert({
       where: { userId },
       update: {
@@ -298,9 +270,6 @@ export class InvestmentsService {
     this.logger.log(`Portfolio updated for user ${userId}`);
   }
 
-  /**
-   * Recalculate all user portfolios (can be called by cron job)
-   */
   async recalculateAllPortfolios() {
     this.logger.log('Recalculating all user portfolios');
 

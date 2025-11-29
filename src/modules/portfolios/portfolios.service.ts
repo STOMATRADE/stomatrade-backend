@@ -7,13 +7,9 @@ export class PortfoliosService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Get user's investment portfolio
-   */
   async getUserPortfolio(userId: string) {
     this.logger.log(`Getting portfolio for user ${userId}`);
 
-    // Verify user exists
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -22,13 +18,12 @@ export class PortfoliosService {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
-    // Get or create portfolio
     let portfolio = await this.prisma.investmentPortfolio.findUnique({
       where: { userId },
     });
 
     if (!portfolio) {
-      // Create empty portfolio if doesn't exist
+      
       portfolio = await this.prisma.investmentPortfolio.create({
         data: {
           userId,
@@ -42,7 +37,6 @@ export class PortfoliosService {
       });
     }
 
-    // Get investments with details
     const investments = await this.prisma.investment.findMany({
       where: { userId, deleted: false },
       include: {
@@ -77,9 +71,6 @@ export class PortfoliosService {
     };
   }
 
-  /**
-   * Get all portfolios (admin only)
-   */
   async getAllPortfolios() {
     this.logger.log('Getting all portfolios');
 
@@ -100,9 +91,6 @@ export class PortfoliosService {
     });
   }
 
-  /**
-   * Get top investors
-   */
   async getTopInvestors(limit = 10) {
     this.logger.log(`Getting top ${limit} investors`);
 
@@ -123,9 +111,6 @@ export class PortfoliosService {
     });
   }
 
-  /**
-   * Get portfolio statistics
-   */
   async getGlobalStats() {
     this.logger.log('Calculating global portfolio statistics');
 

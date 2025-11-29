@@ -19,9 +19,7 @@ export class ProjectsService {
       },
     });
 
-    return {
-      ...res
-    }
+    return res as ProjectResponseDto;
   }
 
   async findAll(pagination: PaginationDto): Promise<PaginatedResponseDto<ProjectResponseDto>> {
@@ -38,7 +36,7 @@ export class ProjectsService {
       this.prisma.project.count({ where: { deleted: false } }),
     ]);
 
-    return new PaginatedResponseDto(data, total, page, limit);
+    return new PaginatedResponseDto(data as ProjectResponseDto[], total, page, limit);
   }
 
   async findOne(id: string): Promise<ProjectResponseDto> {
@@ -50,7 +48,7 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${id} not found`);
     }
 
-    return project;
+    return project as ProjectResponseDto;
   }
 
   async findByFarmer(farmerId: string, pagination: PaginationDto): Promise<PaginatedResponseDto<ProjectResponseDto>> {
@@ -67,7 +65,7 @@ export class ProjectsService {
       this.prisma.project.count({ where: { farmerId, deleted: false } }),
     ]);
 
-    return new PaginatedResponseDto(data, total, page, limit);
+    return new PaginatedResponseDto(data as ProjectResponseDto[], total, page, limit);
   }
 
   async findByLand(landId: string, pagination: PaginationDto): Promise<PaginatedResponseDto<ProjectResponseDto>> {
@@ -84,7 +82,7 @@ export class ProjectsService {
       this.prisma.project.count({ where: { landId, deleted: false } }),
     ]);
 
-    return new PaginatedResponseDto(data, total, page, limit);
+    return new PaginatedResponseDto(data as ProjectResponseDto[], total, page, limit);
   }
 
   async update(id: string, updateProjectDto: UpdateProjectDto): Promise<ProjectResponseDto> {
@@ -95,10 +93,12 @@ export class ProjectsService {
       updateData.sendDate = new Date(updateProjectDto.sendDate);
     }
 
-    return this.prisma.project.update({
+    const updated = await this.prisma.project.update({
       where: { id },
       data: updateData,
     });
+
+    return updated as ProjectResponseDto;
   }
 
   async remove(id: string): Promise<ProjectResponseDto> {
@@ -109,6 +109,6 @@ export class ProjectsService {
       data: { deleted: true },
     });
 
-    return res;
+    return res as ProjectResponseDto;
   }
 }

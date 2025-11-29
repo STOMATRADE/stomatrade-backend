@@ -1,129 +1,73 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ProjectResponseDto {
-  @ApiProperty({
-    description: 'Unique identifier',
-    example: 'cc0e8400-e29b-41d4-a716-446655440007',
-  })
+  @ApiProperty({example: 'cc0e8400-e29b-41d4-a716-446655440007',})
   id: string;
 
-  @ApiProperty({
-    description: 'NFT Token ID (after minting on blockchain)',
-    example: 3001,
-    nullable: true,
-  })
+  @ApiProperty({example: 3001,
+    nullable: true,})
   tokenId: number | null;
 
-  @ApiProperty({
-    description: 'Collector ID',
-    example: '550e8400-e29b-41d4-a716-446655440000',
-  })
+  @ApiProperty({example: '550e8400-e29b-41d4-a716-446655440000',})
   collectorId: string;
 
-  @ApiProperty({
-    description: 'Farmer ID',
-    example: '770e8400-e29b-41d4-a716-446655440002',
-  })
+  @ApiProperty({example: '770e8400-e29b-41d4-a716-446655440002',})
   farmerId: string;
 
-  @ApiProperty({
-    description: 'Land ID',
-    example: '880e8400-e29b-41d4-a716-446655440003',
-  })
+  @ApiProperty({example: '880e8400-e29b-41d4-a716-446655440003',})
   landId: string;
 
-  @ApiProperty({
-    description: 'Project name/title',
-    example: 'Coffee Arabica Q1 Harvest',
-  })
+  @ApiProperty({example: 'Coffee Arabica Q1 Harvest',})
   name: string;
 
-  @ApiProperty({
-    description: 'Commodity type',
-    example: 'Rice',
-  })
+  @ApiProperty({example: 'Rice',})
   commodity: string;
 
-  @ApiProperty({
-    description: 'Volume in units',
-    example: 1000.5,
-  })
+  @ApiProperty({example: 1000.5,})
   volume: number;
 
-  @ApiProperty({
-    description: 'Decimals used for volume representation',
-    example: 18,
-  })
+  @ApiProperty({example: 18,})
   volumeDecimal: number;
 
-  @ApiProperty({
-    description: 'Profit share percentage (nullable)',
-    example: 20,
-    nullable: true,
-  })
+  @ApiProperty({example: 20,
+    nullable: true,})
   profitShare: number | null;
 
-  @ApiProperty({
-    description: 'Expected send/delivery date',
-    example: '2025-02-15T08:00:00.000Z',
-  })
+  @ApiProperty({example: '2025-02-15T08:00:00.000Z',})
   sendDate: Date;
 
-  @ApiProperty({
-    description: 'Creation timestamp',
-  })
+  @ApiProperty()
   createdAt: Date;
 
-  @ApiProperty({
-    description: 'Last update timestamp',
-  })
+  @ApiProperty()
   updatedAt: Date;
 
-  @ApiProperty({
-    description: 'Soft delete flag',
-    example: false,
-  })
+  @ApiProperty({example: false,})
   deleted: boolean;
 }
 
 export class ProjectWithRelationsDto extends ProjectResponseDto {
-  @ApiProperty({
-    description: 'Farmer data',
-  })
+  @ApiProperty()
   farmer?: any;
 
-  @ApiProperty({
-    description: 'Land data',
-  })
+  @ApiProperty()
   land?: any;
 
-  @ApiProperty({
-    description: 'Project submission status',
-  })
+  @ApiProperty()
   projectSubmission?: any;
 
-  @ApiProperty({
-    description: 'List of investments',
-    type: 'array',
-  })
+  @ApiProperty({type: 'array',})
   investments?: any[];
 
-  @ApiProperty({
-    description: 'Profit pool data',
-  })
+  @ApiProperty()
   profitPool?: any;
 }
 
 export class PaginatedProjectResponseDto {
-  @ApiProperty({
-    description: 'List of projects',
-    type: [ProjectResponseDto],
-  })
-  data: ProjectResponseDto[];
+  @ApiProperty({type: [ProjectResponseDto],})
+  items: ProjectResponseDto[];
 
-  @ApiProperty({
-    description: 'Pagination metadata',
-  })
+  @ApiProperty()
   meta: {
     total: number;
     page: number;

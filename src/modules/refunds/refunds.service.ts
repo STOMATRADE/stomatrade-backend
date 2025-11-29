@@ -18,13 +18,9 @@ export class RefundsService {
     private readonly stomaTradeContract: StomaTradeContractService,
   ) {}
 
-  /**
-   * Admin marks a project as refundable (failed crowdfunding)
-   */
   async markRefundable(dto: MarkRefundableDto) {
     this.logger.log(`Marking project ${dto.projectId} as refundable`);
 
-    // Verify project exists and has tokenId
     const project = await this.prisma.project.findUnique({
       where: { id: dto.projectId },
       include: {
@@ -43,7 +39,7 @@ export class RefundsService {
     }
 
     try {
-      // Call blockchain markRefundable function
+      
       const projectTokenId = BigInt(project.tokenId);
 
       this.logger.log(
@@ -52,7 +48,6 @@ export class RefundsService {
 
       const txResult = await this.stomaTradeContract.markRefundable(projectTokenId);
 
-      // Create blockchain transaction record
       const blockchainTx = await this.prisma.blockchainTransaction.create({
         data: {
           transactionHash: txResult.hash,
@@ -92,15 +87,11 @@ export class RefundsService {
     }
   }
 
-  /**
-   * Investor claims refund from a failed project
-   */
   async claimRefund(dto: ClaimRefundDto) {
     this.logger.log(
       `User ${dto.userId} claiming refund from project ${dto.projectId}`,
     );
 
-    // Verify user exists
     const user = await this.prisma.user.findUnique({
       where: { id: dto.userId },
     });
@@ -109,7 +100,6 @@ export class RefundsService {
       throw new NotFoundException(`User with ID ${dto.userId} not found`);
     }
 
-    // Verify project exists and has tokenId
     const project = await this.prisma.project.findUnique({
       where: { id: dto.projectId },
     });
@@ -124,7 +114,6 @@ export class RefundsService {
       );
     }
 
-    // Verify user has invested in this project
     const investment = await this.prisma.investment.findFirst({
       where: {
         userId: dto.userId,
@@ -140,7 +129,7 @@ export class RefundsService {
     }
 
     try {
-      // Call blockchain claimRefund function
+      
       const projectTokenId = BigInt(project.tokenId);
 
       this.logger.log(
@@ -149,8 +138,7 @@ export class RefundsService {
 
       const txResult = await this.stomaTradeContract.claimRefund(projectTokenId);
 
-      // Parse event to get refunded amount
-      let refundedAmount = investment.amount; // Default to full investment amount
+      let refundedAmount = investment.amount; 
       if (txResult.receipt) {
         const refundedEvent = this.stomaTradeContract.getEventFromReceipt(
           txResult.receipt,
@@ -172,7 +160,6 @@ export class RefundsService {
         }
       }
 
-      // Create blockchain transaction record
       const blockchainTx = await this.prisma.blockchainTransaction.create({
         data: {
           transactionHash: txResult.hash,
@@ -192,15 +179,13 @@ export class RefundsService {
         },
       });
 
-      // Mark investment as refunded (soft delete or add refunded flag)
       await this.prisma.investment.update({
         where: { id: investment.id },
         data: {
-          deleted: true, // Mark as refunded via soft delete
+          deleted: true, 
         },
       });
 
-      // Update user portfolio
       await this.updateUserPortfolioAfterRefund(dto.userId);
 
       this.logger.log(`Refund claimed successfully: ${investment.id}`);
@@ -225,12 +210,8 @@ export class RefundsService {
     }
   }
 
-  /**
-   * Get refundable projects
-   */
   async getRefundableProjects() {
-    // In a real implementation, you'd query the blockchain or have a status field
-    // For now, we return projects that are likely refundable based on conditions
+    
     const projects = await this.prisma.project.findMany({
       where: {
         tokenId: { not: null },
@@ -248,9 +229,6 @@ export class RefundsService {
     return projects;
   }
 
-  /**
-   * Get user's refund claims
-   */
   async getUserRefundClaims(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -260,7 +238,6 @@ export class RefundsService {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
-    // Get refunded investments (soft deleted)
     const refundedInvestments = await this.prisma.investment.findMany({
       where: {
         userId,
@@ -280,8 +257,6 @@ export class RefundsService {
 
     return refundedInvestments;
   }
-
-  // ============ HELPER METHODS ============
 
   private async updateUserPortfolioAfterRefund(userId: string) {
     const investments = await this.prisma.investment.findMany({
@@ -335,5 +310,4 @@ export class RefundsService {
       },
     });
   }
-}
-
+}

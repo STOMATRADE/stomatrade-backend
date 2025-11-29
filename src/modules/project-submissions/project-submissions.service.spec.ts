@@ -36,6 +36,7 @@ describe('ProjectSubmissionsService', () => {
     rejectionReason: null,
     blockchainTxId: null,
     mintedTokenId: null,
+    encodedCalldata: '0xencodeddata',
     createdAt: new Date(),
     updatedAt: new Date(),
     deleted: false,
