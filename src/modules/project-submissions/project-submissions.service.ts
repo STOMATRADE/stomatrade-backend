@@ -172,7 +172,7 @@ export class ProjectSubmissionsService {
           transactionType: 'CREATE_PROJECT',
           status: txResult.success ? 'CONFIRMED' : 'FAILED',
           fromAddress: await this.stomaTradeContract.getSignerAddress(),
-          toAddress: this.stomaTradeContract.getContractAddress(),
+          toAddress: this.stomaTradeContract.getstomatradeAddress(),
           blockNumber: txResult.blockNumber || null,
           gasUsed: txResult.gasUsed?.toString(),
           gasPrice: txResult.effectiveGasPrice?.toString(),
