@@ -4,9 +4,7 @@ import { ethers } from 'ethers';
 import { EthersProviderService } from './ethers-provider.service';
 import { PlatformWalletService } from './platform-wallet.service';
 import { TransactionService, TransactionResult } from './transaction.service';
-import StomaTradeABI from '../abi/StomaTrade.json';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { json } from 'stream/consumers';
 
 export interface ProjectData {
   owner: string;
@@ -48,7 +46,7 @@ export class StomaTradeContractService implements OnModuleInit {
     if (!project?.abi) {
       throw new Error('STOMA_TRADE_ABI not found');
     }
-    this.stomatradeAbi = JSON.parse(project.abi);
+    this.stomatradeAbi = JSON.parse(project.abi.replace(/\\"/g, '"'));
 
 
     const wallet = this.walletService.getWallet();
