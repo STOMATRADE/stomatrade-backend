@@ -13,6 +13,7 @@ import { ProjectSubmissionsService } from './project-submissions.service';
 import { CreateProjectSubmissionDto } from './dto/create-project-submission.dto';
 import { ApproveProjectSubmissionDto } from './dto/approve-project-submission.dto';
 import { RejectProjectSubmissionDto } from './dto/reject-project-submission.dto';
+import { ProjectSubmissionResponseDto } from './dto/project-submission-response.dto';
 import { SUBMISSION_STATUS, ROLES } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
 
@@ -34,6 +35,7 @@ export class ProjectSubmissionsController {
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Project submission created successfully',
+    type: ProjectSubmissionResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -84,6 +86,7 @@ export class ProjectSubmissionsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Project submission retrieved successfully',
+    type: ProjectSubmissionResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,

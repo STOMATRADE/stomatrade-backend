@@ -73,6 +73,31 @@ export class StomaTradeContractService implements OnModuleInit {
   }
 
   /**
+   * Encode raw calldata for a contract function using the loaded ABI.
+   * Useful for frontends that need hex data without sending a transaction.
+   */
+  encodeFunctionData(functionName: string, args: unknown[]): string {
+    const contract = this.getContract();
+    return contract.interface.encodeFunctionData(functionName, args);
+  }
+
+  getCreateProjectCalldata(
+    valueProject: string | bigint,
+    maxCrowdFunding: string | bigint,
+    cid: string,
+  ): string {
+    return this.encodeFunctionData('createProject', [
+      valueProject,
+      maxCrowdFunding,
+      cid,
+    ]);
+  }
+
+  getMintFarmerCalldata(namaKomoditas: string): string {
+    return this.encodeFunctionData('nftFarmer', [namaKomoditas]);
+  }
+
+  /**
    * Get the signer address
    */
   async getSignerAddress(): Promise<string> {

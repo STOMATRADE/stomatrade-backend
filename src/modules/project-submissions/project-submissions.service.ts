@@ -70,8 +70,17 @@ export class ProjectSubmissionsService {
       },
     });
 
+    const encodedCalldata = this.stomaTradeContract.getCreateProjectCalldata(
+      dto.valueProject,
+      dto.maxCrowdFunding,
+      dto.metadataCid || '',
+    );
+
     this.logger.log(`Project submission created: ${submission.id}`);
-    return submission;
+    return {
+      ...submission,
+      encodedCalldata,
+    };
   }
 
   /**

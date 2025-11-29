@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -172,19 +166,20 @@ model BuyerHistory {
 }
 
 model Project {
-  id           String   @id @default(uuid())
-  tokenId      Int?
-  commodity    String
-  volume       Float
-  gradeQuality String
-  collectorId  String
-  farmerId     String
-  landId       String
-  sendDate     DateTime
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deleted      Boolean  @default(false)
-
+  id                String             @id @default(uuid())
+  tokenId           Int?
+  collectorId       String
+  farmerId          String
+  landId            String
+  commodity         String
+  name              String
+  volume            Float
+  volumeDecimal     Int                @default(18)
+  profitShare       Int?
+  sendDate          DateTime
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  deleted           Boolean            @default(false)
   collector         Collector          @relation(fields: [collectorId], references: [id], onDelete: Cascade)
   farmer            Farmer             @relation(fields: [farmerId], references: [id], onDelete: Cascade)
   land              Land               @relation(fields: [landId], references: [id], onDelete: Cascade)

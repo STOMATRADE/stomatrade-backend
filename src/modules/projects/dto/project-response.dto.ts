@@ -15,6 +15,30 @@ export class ProjectResponseDto {
   tokenId: number | null;
 
   @ApiProperty({
+    description: 'Collector ID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  collectorId: string;
+
+  @ApiProperty({
+    description: 'Farmer ID',
+    example: '770e8400-e29b-41d4-a716-446655440002',
+  })
+  farmerId: string;
+
+  @ApiProperty({
+    description: 'Land ID',
+    example: '880e8400-e29b-41d4-a716-446655440003',
+  })
+  landId: string;
+
+  @ApiProperty({
+    description: 'Project name/title',
+    example: 'Coffee Arabica Q1 Harvest',
+  })
+  name: string;
+
+  @ApiProperty({
     description: 'Commodity type',
     example: 'Rice',
   })
@@ -27,22 +51,17 @@ export class ProjectResponseDto {
   volume: number;
 
   @ApiProperty({
-    description: 'Quality grade',
-    example: 'A',
+    description: 'Decimals used for volume representation',
+    example: 18,
   })
-  gradeQuality: string;
+  volumeDecimal: number;
 
   @ApiProperty({
-    description: 'Associated farmer ID',
-    example: '770e8400-e29b-41d4-a716-446655440002',
+    description: 'Profit share percentage (nullable)',
+    example: 20,
+    nullable: true,
   })
-  farmerId: string;
-
-  @ApiProperty({
-    description: 'Associated land ID',
-    example: '880e8400-e29b-41d4-a716-446655440003',
-  })
-  landId: string;
+  profitShare: number | null;
 
   @ApiProperty({
     description: 'Expected send/delivery date',

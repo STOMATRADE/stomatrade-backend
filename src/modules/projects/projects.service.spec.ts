@@ -11,9 +11,12 @@ describe('ProjectsService', () => {
   const mockProject = {
     id: 'project-uuid-1',
     tokenId: null,
+    collectorId: 'collector-uuid-1',
     commodity: 'Rice',
     volume: 1000.5,
-    gradeQuality: 'A',
+    volumeDecimal: 18,
+    profitShare: 20,
+    name: 'Rice Harvest',
     farmerId: 'farmer-uuid-1',
     landId: 'land-uuid-1',
     sendDate: new Date('2025-02-15'),
@@ -46,9 +49,12 @@ describe('ProjectsService', () => {
   describe('create', () => {
     it('should create a new project', async () => {
       const createDto = {
+        collectorId: 'collector-uuid-1',
         commodity: 'Rice',
         volume: 1000.5,
-        gradeQuality: 'A',
+        volumeDecimal: 18,
+        profitShare: 20,
+        name: 'Rice Harvest',
         farmerId: 'farmer-uuid-1',
         landId: 'land-uuid-1',
         sendDate: '2025-02-15T08:00:00.000Z',
@@ -115,7 +121,7 @@ describe('ProjectsService', () => {
 
   describe('findOne', () => {
     it('should return a project by id', async () => {
-      prisma.project.findUnique.mockResolvedValue(mockProject);
+      prisma.project.findFirst.mockResolvedValue(mockProject);
 
       const result = await service.findOne('project-uuid-1');
 
@@ -123,7 +129,7 @@ describe('ProjectsService', () => {
     });
 
     it('should throw NotFoundException if not found', async () => {
-      prisma.project.findUnique.mockResolvedValue(null);
+      prisma.project.findFirst.mockResolvedValue(null);
 
       await expect(service.findOne('non-existent')).rejects.toThrow(
         NotFoundException,
@@ -136,7 +142,7 @@ describe('ProjectsService', () => {
       const updateDto = { commodity: 'Premium Rice' };
       const updated = { ...mockProject, commodity: 'Premium Rice' };
 
-      prisma.project.findUnique.mockResolvedValue(mockProject);
+      prisma.project.findFirst.mockResolvedValue(mockProject);
       prisma.project.update.mockResolvedValue(updated);
 
       const result = await service.update('project-uuid-1', updateDto);
@@ -149,7 +155,7 @@ describe('ProjectsService', () => {
     it('should soft delete a project', async () => {
       const deleted = { ...mockProject, deleted: true };
 
-      prisma.project.findUnique.mockResolvedValue(mockProject);
+      prisma.project.findFirst.mockResolvedValue(mockProject);
       prisma.project.update.mockResolvedValue(deleted);
 
       const result = await service.remove('project-uuid-1');

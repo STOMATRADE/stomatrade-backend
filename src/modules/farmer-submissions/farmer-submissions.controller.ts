@@ -13,6 +13,7 @@ import { FarmerSubmissionsService } from './farmer-submissions.service';
 import { CreateFarmerSubmissionDto } from './dto/create-farmer-submission.dto';
 import { ApproveFarmerSubmissionDto } from './dto/approve-farmer-submission.dto';
 import { RejectFarmerSubmissionDto } from './dto/reject-farmer-submission.dto';
+import { FarmerSubmissionResponseDto } from './dto/farmer-submission-response.dto';
 import { SUBMISSION_STATUS, ROLES } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
 
@@ -34,6 +35,7 @@ export class FarmerSubmissionsController {
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Farmer submission created successfully',
+    type: FarmerSubmissionResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -83,6 +85,7 @@ export class FarmerSubmissionsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Farmer submission retrieved successfully',
+    type: FarmerSubmissionResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
