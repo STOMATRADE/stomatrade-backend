@@ -1,0 +1,353 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { StomaTradeContractService } from '../../blockchain/services/stomatrade-contract.service';
+import { DepositProfitDto } from './dto/deposit-profit.dto';
+import { ClaimProfitDto } from './dto/claim-profit.dto';
+
+@Injectable()
+export class ProfitsService {
+  private readonly logger = new Logger(ProfitsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly stomaTradeContract: StomaTradeContractService,
+  ) {}
+
+  /**
+   * Admin deposits profit for a project
+   */
+  async depositProfit(dto: DepositProfitDto) {
+    this.logger.log(`Depositing profit for project ${dto.projectId}`);
+
+    // Verify project exists and has tokenId
+    const project = await this.prisma.project.findUnique({
+      where: { id: dto.projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${dto.projectId} not found`);
+    }
+
+    if (!project.tokenId) {
+      throw new BadRequestException(
+        'Project has not been minted on blockchain yet',
+      );
+    }
+
+    try {
+      // Call blockchain depositProfit function
+      const projectTokenId = BigInt(project.tokenId);
+      const amount = BigInt(dto.amount);
+
+      this.logger.log(
+        `Calling blockchain depositProfit() - ProjectId: ${projectTokenId}, Amount: ${amount}`,
+      );
+
+      const txResult = await this.stomaTradeContract.depositProfit(
+        projectTokenId,
+        amount,
+      );
+
+      // Get or create profit pool
+      let profitPool = await this.prisma.profitPool.findUnique({
+        where: { projectId: dto.projectId },
+      });
+
+      if (!profitPool) {
+        profitPool = await this.prisma.profitPool.create({
+          data: {
+            projectId: dto.projectId,
+            totalDeposited: dto.amount,
+            totalClaimed: '0',
+            remainingProfit: dto.amount,
+          },
+        });
+      } else {
+        // Update profit pool
+        const newTotalDeposited =
+          BigInt(profitPool.totalDeposited) + BigInt(dto.amount);
+        const newRemainingProfit =
+          BigInt(profitPool.remainingProfit) + BigInt(dto.amount);
+
+        profitPool = await this.prisma.profitPool.update({
+          where: { projectId: dto.projectId },
+          data: {
+            totalDeposited: newTotalDeposited.toString(),
+            remainingProfit: newRemainingProfit.toString(),
+            lastDepositAt: new Date(),
+          },
+        });
+      }
+
+      this.logger.log(`Profit deposited successfully for project ${dto.projectId}`);
+
+      return {
+        profitPool,
+        transaction: {
+          hash: txResult.hash,
+          blockNumber: txResult.blockNumber,
+          status: txResult.success ? 'CONFIRMED' : 'FAILED',
+        },
+      };
+    } catch (error) {
+      this.logger.error('Error depositing profit on blockchain', error);
+      throw new BadRequestException(
+        `Failed to deposit profit on blockchain: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Investor claims profit from a project
+   */
+  async claimProfit(dto: ClaimProfitDto) {
+    this.logger.log(
+      `User ${dto.userId} claiming profit from project ${dto.projectId}`,
+    );
+
+    // Verify user exists
+    const user = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${dto.userId} not found`);
+    }
+
+    // Verify project exists and has tokenId
+    const project = await this.prisma.project.findUnique({
+      where: { id: dto.projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${dto.projectId} not found`);
+    }
+
+    if (!project.tokenId) {
+      throw new BadRequestException(
+        'Project has not been minted on blockchain yet',
+      );
+    }
+
+    // Verify user has invested in this project
+    const investment = await this.prisma.investment.findFirst({
+      where: {
+        userId: dto.userId,
+        projectId: dto.projectId,
+        deleted: false,
+      },
+    });
+
+    if (!investment) {
+      throw new BadRequestException(
+        'User has not invested in this project',
+      );
+    }
+
+    try {
+      // Call blockchain claimProfit function
+      const projectTokenId = BigInt(project.tokenId);
+
+      this.logger.log(
+        `Calling blockchain claimProfit() - ProjectId: ${projectTokenId}`,
+      );
+
+      const txResult = await this.stomaTradeContract.claimProfit(projectTokenId);
+
+      // Parse event to get claimed amount
+      let claimedAmount = '0';
+      if (txResult.receipt) {
+        const profitClaimedEvent =
+          this.stomaTradeContract.getEventFromReceipt(
+            txResult.receipt,
+            'ProfitClaimed',
+          );
+
+        if (profitClaimedEvent) {
+          const parsed = this.stomaTradeContract
+            .getContract()
+            .interface.parseLog({
+              topics: profitClaimedEvent.topics,
+              data: profitClaimedEvent.data,
+            });
+
+          if (parsed) {
+            claimedAmount = parsed.args.amount.toString();
+            this.logger.log(`Profit claimed: ${claimedAmount}`);
+          }
+        }
+      }
+
+      // Get or create profit pool
+      let profitPool = await this.prisma.profitPool.findUnique({
+        where: { projectId: dto.projectId },
+      });
+
+      if (!profitPool) {
+        // If no profit pool exists, create one with zero values
+        profitPool = await this.prisma.profitPool.create({
+          data: {
+            projectId: dto.projectId,
+            totalDeposited: '0',
+            totalClaimed: claimedAmount,
+            remainingProfit: '0',
+          },
+        });
+      } else {
+        // Update profit pool
+        const newTotalClaimed =
+          BigInt(profitPool.totalClaimed) + BigInt(claimedAmount);
+        const newRemainingProfit =
+          BigInt(profitPool.remainingProfit) - BigInt(claimedAmount);
+
+        profitPool = await this.prisma.profitPool.update({
+          where: { projectId: dto.projectId },
+          data: {
+            totalClaimed: newTotalClaimed.toString(),
+            remainingProfit: newRemainingProfit.toString(),
+          },
+        });
+      }
+
+      // Create profit claim record
+      const profitClaim = await this.prisma.profitClaim.create({
+        data: {
+          userId: dto.userId,
+          profitPoolId: profitPool.id,
+          investmentId: investment.id,
+          amount: claimedAmount,
+          transactionHash: txResult.hash,
+          blockNumber: txResult.blockNumber || null,
+        },
+        include: {
+          user: true,
+          profitPool: {
+            include: {
+              project: true,
+            },
+          },
+          investment: true,
+        },
+      });
+
+      this.logger.log(`Profit claimed successfully: ${profitClaim.id}`);
+
+      return profitClaim;
+    } catch (error) {
+      this.logger.error('Error claiming profit on blockchain', error);
+      throw new BadRequestException(
+        `Failed to claim profit on blockchain: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Get profit pool for a project
+   */
+  async getProjectProfitPool(projectId: string) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
+    }
+
+    const profitPool = await this.prisma.profitPool.findUnique({
+      where: { projectId },
+      include: {
+        project: {
+          include: {
+            farmer: true,
+          },
+        },
+        profitClaims: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                walletAddress: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!profitPool) {
+      return {
+        projectId,
+        totalDeposited: '0',
+        totalClaimed: '0',
+        remainingProfit: '0',
+        profitClaims: [],
+      };
+    }
+
+    return profitPool;
+  }
+
+  /**
+   * Get user's profit claims
+   */
+  async getUserProfitClaims(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    return await this.prisma.profitClaim.findMany({
+      where: { userId, deleted: false },
+      include: {
+        profitPool: {
+          include: {
+            project: {
+              include: {
+                farmer: true,
+              },
+            },
+          },
+        },
+        investment: true,
+      },
+      orderBy: {
+        claimedAt: 'desc',
+      },
+    });
+  }
+
+  /**
+   * Get all profit pools
+   */
+  async getAllProfitPools() {
+    return await this.prisma.profitPool.findMany({
+      where: { deleted: false },
+      include: {
+        project: {
+          include: {
+            farmer: true,
+          },
+        },
+        profitClaims: {
+          select: {
+            id: true,
+            userId: true,
+            amount: true,
+            claimedAt: true,
+          },
+        },
+      },
+      orderBy: {
+        totalDeposited: 'desc',
+      },
+    });
+  }
+}

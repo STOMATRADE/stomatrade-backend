@@ -1,0 +1,207 @@
+[
+  {
+    "type": "function",
+    "name": "createProject",
+    "inputs": [
+      { "name": "valueProject", "type": "uint256", "internalType": "uint256" },
+      { "name": "maxCrowdFunding", "type": "uint256", "internalType": "uint256" },
+      { "name": "cid", "type": "string", "internalType": "string" }
+    ],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "nftFarmer",
+    "inputs": [
+      { "name": "namaKomoditas", "type": "string", "internalType": "string" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "invest",
+    "inputs": [
+      { "name": "projectId", "type": "uint256", "internalType": "uint256" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "depositProfit",
+    "inputs": [
+      { "name": "projectId", "type": "uint256", "internalType": "uint256" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "claimProfit",
+    "inputs": [
+      { "name": "projectId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "refundable",
+    "inputs": [
+      { "name": "projectId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "claimRefund",
+    "inputs": [
+      { "name": "projectId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "closeCrowdFunding",
+    "inputs": [
+      { "name": "projectId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getProject",
+    "inputs": [
+      { "name": "projectId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          { "name": "owner", "type": "address", "internalType": "address" },
+          { "name": "valueProject", "type": "uint256", "internalType": "uint256" },
+          { "name": "maxCrowdFunding", "type": "uint256", "internalType": "uint256" },
+          { "name": "totalRaised", "type": "uint256", "internalType": "uint256" },
+          { "name": "status", "type": "uint8", "internalType": "enum ProjectStatus" },
+          { "name": "cid", "type": "string", "internalType": "string" }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getContribution",
+    "inputs": [
+      { "name": "projectId", "type": "uint256", "internalType": "uint256" },
+      { "name": "investor", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getProfitPool",
+    "inputs": [
+      { "name": "projectId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getClaimedProfit",
+    "inputs": [
+      { "name": "projectId", "type": "uint256", "internalType": "uint256" },
+      { "name": "investor", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tokenURI",
+    "inputs": [
+      { "name": "tokenId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "", "type": "string", "internalType": "string" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "ProjectCreated",
+    "inputs": [
+      { "name": "idProject", "type": "uint256", "indexed": true },
+      { "name": "owner", "type": "address", "indexed": true },
+      { "name": "valueProject", "type": "uint256", "indexed": false },
+      { "name": "maxCrowdFunding", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FarmerMinted",
+    "inputs": [
+      { "name": "farmer", "type": "address", "indexed": true },
+      { "name": "nftId", "type": "uint256", "indexed": false },
+      { "name": "namaKomoditas", "type": "string", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Invested",
+    "inputs": [
+      { "name": "idProject", "type": "uint256", "indexed": true },
+      { "name": "investor", "type": "address", "indexed": true },
+      { "name": "amount", "type": "uint256", "indexed": false },
+      { "name": "receiptTokenId", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Refunded",
+    "inputs": [
+      { "name": "idProject", "type": "uint256", "indexed": true },
+      { "name": "investor", "type": "address", "indexed": true },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ProfitDeposited",
+    "inputs": [
+      { "name": "idProject", "type": "uint256", "indexed": true },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ProfitClaimed",
+    "inputs": [
+      { "name": "idProject", "type": "uint256", "indexed": true },
+      { "name": "user", "type": "address", "indexed": true },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  }
+]

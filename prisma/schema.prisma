@@ -1,0 +1,420 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ROLES {
+  ADMIN
+  STAFF
+  INVESTOR
+  COLLECTOR
+}
+
+enum GENDER {
+  MALE
+  FEMALE
+}
+
+enum SUBMISSION_STATUS {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  MINTED
+}
+
+enum PROJECT_STATUS {
+  ACTIVE
+  SUCCESS
+  REFUNDING
+  CLOSED
+}
+
+enum TRANSACTION_STATUS {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+enum TRANSACTION_TYPE {
+  CREATE_PROJECT
+  MINT_FARMER_NFT
+  INVEST
+  DEPOSIT_PROFIT
+  CLAIM_PROFIT
+  REFUND
+  CLOSE_CROWDFUNDING
+}
+
+model User {
+  id             String    @id @default(uuid())
+  walletAddress  String    @unique
+  role           ROLES
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deleted        Boolean   @default(false)
+
+  collector          Collector?
+  tokenNotifications TokenNotification[]
+  investments        Investment[]
+  portfolios         InvestmentPortfolio[]
+  profitClaims       ProfitClaim[]
+
+  @@map("users")
+}
+
+model Collector {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  nik       String   @unique
+  name      String
+  address   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deleted   Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farmers   Farmer[]
+
+  @@map("collectors")
+}
+
+model Farmer {
+  id          String   @id @default(uuid())
+  collectorId String
+  tokenId     Int?
+  nik         String   @unique
+  name        String
+  age         Int
+  gender      GENDER
+  address     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deleted     Boolean  @default(false)
+
+  collector        Collector          @relation(fields: [collectorId], references: [id], onDelete: Cascade)
+  lands            Land[]
+  projects         Project[]
+  farmerSubmission FarmerSubmission?
+
+  @@map("farmers")
+}
+
+model Land {
+  id        String   @id @default(uuid())
+  farmerId  String
+  tokenId   Int
+  latitude  Float
+  longitude Float
+  address   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deleted   Boolean  @default(false)
+
+  farmer    Farmer   @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  projects  Project[]
+
+  @@map("lands")
+}
+
+model File {
+  id        String   @id @default(uuid())
+  reffId    String
+  url       String
+  type      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deleted   Boolean  @default(false)
+
+  @@index([reffId])
+  @@map("files")
+}
+
+model Buyer {
+  id             String   @id @default(uuid())
+  companyName    String
+  companyAddress String
+  phoneNumber    String
+  companyMail    String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deleted        Boolean  @default(false)
+
+  history        BuyerHistory[]
+
+  @@map("buyers")
+}
+
+model BuyerHistory {
+  id                        String   @id @default(uuid())
+  buyerId                   String
+  buyerTransactionSuccess   Int      @default(0)
+  buyerTransactionFail      Int      @default(0)
+  buyerTier                 String
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  deleted                   Boolean  @default(false)
+
+  buyer                     Buyer    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  @@map("buyer_histories")
+}
+
+model Project {
+  id           String   @id @default(uuid())
+  tokenId      Int?
+  commodity    String
+  volume       Float
+  gradeQuality String
+  farmerId     String
+  landId       String
+  sendDate     DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deleted      Boolean  @default(false)
+
+  farmer            Farmer              @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  land              Land                @relation(fields: [landId], references: [id], onDelete: Cascade)
+  projectSubmission ProjectSubmission?
+  investments       Investment[]
+  profitPool        ProfitPool?
+
+  @@map("projects")
+}
+
+model ChannelNotification {
+  id          String         @id @default(uuid())
+  key         String         @unique
+  desc        String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deleted     Boolean        @default(false)
+
+  notification Notification?
+
+  @@map("channel_notifications")
+}
+
+model Notification {
+  id          String              @id @default(uuid())
+  channelId   String              @unique
+  title       String
+  body        String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  deleted     Boolean             @default(false)
+
+  channel     ChannelNotification @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model TokenNotification {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deleted   Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("token_notifications")
+}
+
+// ============ BLOCKCHAIN INTEGRATION MODELS ============
+
+model FarmerSubmission {
+  id              String            @id @default(uuid())
+  farmerId        String            @unique
+  commodity       String
+  status          SUBMISSION_STATUS @default(SUBMITTED)
+  submittedBy     String
+  approvedBy      String?
+  rejectionReason String?
+  blockchainTxId  String?
+  mintedTokenId   Int?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deleted         Boolean           @default(false)
+
+  farmer          Farmer            @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  transaction     BlockchainTransaction? @relation(fields: [blockchainTxId], references: [id])
+
+  @@index([status])
+  @@map("farmer_submissions")
+}
+
+model ProjectSubmission {
+  id               String            @id @default(uuid())
+  projectId        String            @unique
+  valueProject     String
+  maxCrowdFunding  String
+  metadataCid      String?
+  status           SUBMISSION_STATUS @default(SUBMITTED)
+  submittedBy      String
+  approvedBy       String?
+  rejectionReason  String?
+  blockchainTxId   String?
+  mintedTokenId    Int?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  deleted          Boolean           @default(false)
+
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  transaction      BlockchainTransaction? @relation(fields: [blockchainTxId], references: [id])
+
+  @@index([status])
+  @@map("project_submissions")
+}
+
+model Investment {
+  id                String   @id @default(uuid())
+  userId            String
+  projectId         String
+  amount            String
+  receiptTokenId    Int?
+  transactionHash   String?
+  blockNumber       Int?
+  investedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deleted           Boolean  @default(false)
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  profitClaims      ProfitClaim[]
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([transactionHash])
+  @@map("investments")
+}
+
+model InvestmentPortfolio {
+  id                    String   @id @default(uuid())
+  userId                String
+  totalInvested         String
+  totalProfit           String
+  totalClaimed          String
+  activeInvestments     Int      @default(0)
+  completedInvestments  Int      @default(0)
+  avgROI                Float    @default(0)
+  lastCalculatedAt      DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  deleted               Boolean  @default(false)
+
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@map("investment_portfolios")
+}
+
+model NftMetadata {
+  id              String   @id @default(uuid())
+  tokenId         Int      @unique
+  tokenType       String
+  ownerAddress    String
+  metadataCid     String
+  metadataJson    String?
+  name            String?
+  description     String?
+  image           String?
+  attributes      String?
+  lastSyncedAt    DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deleted         Boolean  @default(false)
+
+  @@index([tokenType])
+  @@index([ownerAddress])
+  @@map("nft_metadata")
+}
+
+model BlockchainTransaction {
+  id                String              @id @default(uuid())
+  transactionHash   String              @unique
+  transactionType   TRANSACTION_TYPE
+  status            TRANSACTION_STATUS  @default(PENDING)
+  fromAddress       String
+  toAddress         String?
+  blockNumber       Int?
+  gasUsed           String?
+  gasPrice          String?
+  errorMessage      String?
+  eventData         String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deleted           Boolean             @default(false)
+
+  farmerSubmissions FarmerSubmission[]
+  projectSubmissions ProjectSubmission[]
+
+  @@index([status])
+  @@index([transactionType])
+  @@index([transactionHash])
+  @@map("blockchain_transactions")
+}
+
+model ProfitPool {
+  id                String   @id @default(uuid())
+  projectId         String   @unique
+  totalDeposited    String
+  totalClaimed      String
+  remainingProfit   String
+  lastDepositAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deleted           Boolean  @default(false)
+
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  profitClaims      ProfitClaim[]
+
+  @@map("profit_pools")
+}
+
+model ProfitClaim {
+  id                String   @id @default(uuid())
+  userId            String
+  profitPoolId      String
+  investmentId      String
+  amount            String
+  transactionHash   String?
+  blockNumber       Int?
+  claimedAt         DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deleted           Boolean  @default(false)
+
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profitPool        ProfitPool  @relation(fields: [profitPoolId], references: [id], onDelete: Cascade)
+  investment        Investment  @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([profitPoolId])
+  @@index([transactionHash])
+  @@map("profit_claims")
+}
+
+model AppProject {
+  id              String   @id @default(cuid())
+  name            String
+  description     String
+  chainId         String     // e.g. "eip155:84532"
+  contractAddress String
+  abi             String     // simpan sebagai JSON string
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deleted         Boolean  @default(false)
+}
