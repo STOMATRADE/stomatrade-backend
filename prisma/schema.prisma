@@ -57,12 +57,12 @@ enum TRANSACTION_TYPE {
 }
 
 model User {
-  id             String    @id @default(uuid())
-  walletAddress  String    @unique
-  role           ROLES
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  deleted        Boolean   @default(false)
+  id            String   @id @default(uuid())
+  walletAddress String   @unique
+  role          ROLES
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deleted       Boolean  @default(false)
 
   collector          Collector?
   tokenNotifications TokenNotification[]
@@ -83,8 +83,9 @@ model Collector {
   updatedAt DateTime @updatedAt
   deleted   Boolean  @default(false)
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  farmers   Farmer[]
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farmers  Farmer[]
+  projects Project[]
 
   @@map("collectors")
 }
@@ -102,7 +103,7 @@ model Farmer {
   updatedAt   DateTime @updatedAt
   deleted     Boolean  @default(false)
 
-  collector        Collector          @relation(fields: [collectorId], references: [id], onDelete: Cascade)
+  collector        Collector         @relation(fields: [collectorId], references: [id], onDelete: Cascade)
   lands            Land[]
   projects         Project[]
   farmerSubmission FarmerSubmission?
@@ -121,8 +122,8 @@ model Land {
   updatedAt DateTime @updatedAt
   deleted   Boolean  @default(false)
 
-  farmer    Farmer   @relation(fields: [farmerId], references: [id], onDelete: Cascade)
-  projects  Project[]
+  farmer   Farmer    @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  projects Project[]
 
   @@map("lands")
 }
@@ -150,22 +151,22 @@ model Buyer {
   updatedAt      DateTime @updatedAt
   deleted        Boolean  @default(false)
 
-  history        BuyerHistory[]
+  history BuyerHistory[]
 
   @@map("buyers")
 }
 
 model BuyerHistory {
-  id                        String   @id @default(uuid())
-  buyerId                   String
-  buyerTransactionSuccess   Int      @default(0)
-  buyerTransactionFail      Int      @default(0)
-  buyerTier                 String
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
-  deleted                   Boolean  @default(false)
+  id                      String   @id @default(uuid())
+  buyerId                 String
+  buyerTransactionSuccess Int      @default(0)
+  buyerTransactionFail    Int      @default(0)
+  buyerTier               String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  deleted                 Boolean  @default(false)
 
-  buyer                     Buyer    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  buyer Buyer @relation(fields: [buyerId], references: [id], onDelete: Cascade)
 
   @@map("buyer_histories")
 }
@@ -176,6 +177,7 @@ model Project {
   commodity    String
   volume       Float
   gradeQuality String
+  collectorId  String
   farmerId     String
   landId       String
   sendDate     DateTime
@@ -183,8 +185,9 @@ model Project {
   updatedAt    DateTime @updatedAt
   deleted      Boolean  @default(false)
 
-  farmer            Farmer              @relation(fields: [farmerId], references: [id], onDelete: Cascade)
-  land              Land                @relation(fields: [landId], references: [id], onDelete: Cascade)
+  collector         Collector          @relation(fields: [collectorId], references: [id], onDelete: Cascade)
+  farmer            Farmer             @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  land              Land               @relation(fields: [landId], references: [id], onDelete: Cascade)
   projectSubmission ProjectSubmission?
   investments       Investment[]
   profitPool        ProfitPool?
@@ -193,12 +196,12 @@ model Project {
 }
 
 model ChannelNotification {
-  id          String         @id @default(uuid())
-  key         String         @unique
-  desc        String
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  deleted     Boolean        @default(false)
+  id        String   @id @default(uuid())
+  key       String   @unique
+  desc      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deleted   Boolean  @default(false)
 
   notification Notification?
 
@@ -206,15 +209,15 @@ model ChannelNotification {
 }
 
 model Notification {
-  id          String              @id @default(uuid())
-  channelId   String              @unique
-  title       String
-  body        String
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  deleted     Boolean             @default(false)
+  id        String   @id @default(uuid())
+  channelId String   @unique
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deleted   Boolean  @default(false)
 
-  channel     ChannelNotification @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channel ChannelNotification @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
 }
@@ -227,7 +230,7 @@ model TokenNotification {
   updatedAt DateTime @updatedAt
   deleted   Boolean  @default(false)
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("token_notifications")
 }
@@ -248,52 +251,52 @@ model FarmerSubmission {
   updatedAt       DateTime          @updatedAt
   deleted         Boolean           @default(false)
 
-  farmer          Farmer            @relation(fields: [farmerId], references: [id], onDelete: Cascade)
-  transaction     BlockchainTransaction? @relation(fields: [blockchainTxId], references: [id])
+  farmer      Farmer                 @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  transaction BlockchainTransaction? @relation(fields: [blockchainTxId], references: [id])
 
   @@index([status])
   @@map("farmer_submissions")
 }
 
 model ProjectSubmission {
-  id               String            @id @default(uuid())
-  projectId        String            @unique
-  valueProject     String
-  maxCrowdFunding  String
-  metadataCid      String?
-  status           SUBMISSION_STATUS @default(SUBMITTED)
-  submittedBy      String
-  approvedBy       String?
-  rejectionReason  String?
-  blockchainTxId   String?
-  mintedTokenId    Int?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  deleted          Boolean           @default(false)
+  id              String            @id @default(uuid())
+  projectId       String            @unique
+  valueProject    String
+  maxCrowdFunding String
+  metadataCid     String?
+  status          SUBMISSION_STATUS @default(SUBMITTED)
+  submittedBy     String
+  approvedBy      String?
+  rejectionReason String?
+  blockchainTxId  String?
+  mintedTokenId   Int?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deleted         Boolean           @default(false)
 
-  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  transaction      BlockchainTransaction? @relation(fields: [blockchainTxId], references: [id])
+  project     Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  transaction BlockchainTransaction? @relation(fields: [blockchainTxId], references: [id])
 
   @@index([status])
   @@map("project_submissions")
 }
 
 model Investment {
-  id                String   @id @default(uuid())
-  userId            String
-  projectId         String
-  amount            String
-  receiptTokenId    Int?
-  transactionHash   String?
-  blockNumber       Int?
-  investedAt        DateTime @default(now())
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  deleted           Boolean  @default(false)
+  id              String   @id @default(uuid())
+  userId          String
+  projectId       String
+  amount          String
+  receiptTokenId  Int?
+  transactionHash String?
+  blockNumber     Int?
+  investedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deleted         Boolean  @default(false)
 
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  profitClaims      ProfitClaim[]
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  profitClaims ProfitClaim[]
 
   @@index([userId])
   @@index([projectId])
@@ -302,40 +305,40 @@ model Investment {
 }
 
 model InvestmentPortfolio {
-  id                    String   @id @default(uuid())
-  userId                String
-  totalInvested         String
-  totalProfit           String
-  totalClaimed          String
-  activeInvestments     Int      @default(0)
-  completedInvestments  Int      @default(0)
-  avgROI                Float    @default(0)
-  lastCalculatedAt      DateTime @default(now())
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  deleted               Boolean  @default(false)
+  id                   String   @id @default(uuid())
+  userId               String
+  totalInvested        String
+  totalProfit          String
+  totalClaimed         String
+  activeInvestments    Int      @default(0)
+  completedInvestments Int      @default(0)
+  avgROI               Float    @default(0)
+  lastCalculatedAt     DateTime @default(now())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  deleted              Boolean  @default(false)
 
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId])
   @@map("investment_portfolios")
 }
 
 model NftMetadata {
-  id              String   @id @default(uuid())
-  tokenId         Int      @unique
-  tokenType       String
-  ownerAddress    String
-  metadataCid     String
-  metadataJson    String?
-  name            String?
-  description     String?
-  image           String?
-  attributes      String?
-  lastSyncedAt    DateTime @default(now())
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deleted         Boolean  @default(false)
+  id           String   @id @default(uuid())
+  tokenId      Int      @unique
+  tokenType    String
+  ownerAddress String
+  metadataCid  String
+  metadataJson String?
+  name         String?
+  description  String?
+  image        String?
+  attributes   String?
+  lastSyncedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deleted      Boolean  @default(false)
 
   @@index([tokenType])
   @@index([ownerAddress])
@@ -343,22 +346,22 @@ model NftMetadata {
 }
 
 model BlockchainTransaction {
-  id                String              @id @default(uuid())
-  transactionHash   String              @unique
-  transactionType   TRANSACTION_TYPE
-  status            TRANSACTION_STATUS  @default(PENDING)
-  fromAddress       String
-  toAddress         String?
-  blockNumber       Int?
-  gasUsed           String?
-  gasPrice          String?
-  errorMessage      String?
-  eventData         String?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  deleted           Boolean             @default(false)
+  id              String             @id @default(uuid())
+  transactionHash String             @unique
+  transactionType TRANSACTION_TYPE
+  status          TRANSACTION_STATUS @default(PENDING)
+  fromAddress     String
+  toAddress       String?
+  blockNumber     Int?
+  gasUsed         String?
+  gasPrice        String?
+  errorMessage    String?
+  eventData       String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  deleted         Boolean            @default(false)
 
-  farmerSubmissions FarmerSubmission[]
+  farmerSubmissions  FarmerSubmission[]
   projectSubmissions ProjectSubmission[]
 
   @@index([status])
@@ -368,38 +371,38 @@ model BlockchainTransaction {
 }
 
 model ProfitPool {
-  id                String   @id @default(uuid())
-  projectId         String   @unique
-  totalDeposited    String
-  totalClaimed      String
-  remainingProfit   String
-  lastDepositAt     DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  deleted           Boolean  @default(false)
+  id              String    @id @default(uuid())
+  projectId       String    @unique
+  totalDeposited  String
+  totalClaimed    String
+  remainingProfit String
+  lastDepositAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deleted         Boolean   @default(false)
 
-  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  profitClaims      ProfitClaim[]
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  profitClaims ProfitClaim[]
 
   @@map("profit_pools")
 }
 
 model ProfitClaim {
-  id                String   @id @default(uuid())
-  userId            String
-  profitPoolId      String
-  investmentId      String
-  amount            String
-  transactionHash   String?
-  blockNumber       Int?
-  claimedAt         DateTime @default(now())
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  deleted           Boolean  @default(false)
+  id              String   @id @default(uuid())
+  userId          String
+  profitPoolId    String
+  investmentId    String
+  amount          String
+  transactionHash String?
+  blockNumber     Int?
+  claimedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deleted         Boolean  @default(false)
 
-  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  profitPool        ProfitPool  @relation(fields: [profitPoolId], references: [id], onDelete: Cascade)
-  investment        Investment  @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profitPool ProfitPool @relation(fields: [profitPoolId], references: [id], onDelete: Cascade)
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([profitPoolId])
@@ -411,9 +414,9 @@ model AppProject {
   id              String   @id @default(cuid())
   name            String
   description     String
-  chainId         String     // e.g. "eip155:84532"
+  chainId         String // e.g. "eip155:84532"
   contractAddress String
-  abi             String     // simpan sebagai JSON string
+  abi             String // simpan sebagai JSON string
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   deleted         Boolean  @default(false)

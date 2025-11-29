@@ -14,6 +14,56 @@
 
 ---
 
+## 🔐 Authentication & Authorization (Merged Guide)
+
+- Wallet-based authentication dengan signature bertimestamp (expired 60 detik) menghasilkan JWT; user baru otomatis dibuat dengan role default `INVESTOR`, admin bisa mendaftarkan role lain.
+- Auth module lengkap: `auth.service.ts`, `auth.controller.ts`, JWT strategy, guards (`JwtAuthGuard`, `RolesGuard`, `WalletAuthGuard`), decorators (`@Public`, `@Roles`, `@CurrentUser`), dan konfigurasi Swagger bearer.
+- Global guards sudah aktif di `app.module.ts`, jadi setiap endpoint wajib JWT kecuali diberi `@Public()`.
+
+### Auth Endpoints
+- `POST /auth/nonce` — optional legacy nonce flow.
+- `POST /auth/verify` — verifikasi signature (EOA/EIP-1271), auto-create user, return JWT.
+- `POST /auth/register` — admin mendaftarkan user dengan role.
+- `GET /auth/profile` — ambil profil user saat ini.
+- `POST /auth/refresh` — refresh token.
+
+### Auth Flow Singkat
+1. Client membuat pesan `Login StoMaTrade: <ISO timestamp>`.
+2. Wallet menandatangani pesan.
+3. Kirim ke `/auth/verify` → backend verifikasi → balikan `accessToken`.
+4. Simpan token dan pakai header `Authorization: Bearer <token>`.
+
+### Guard & Decorator Playbook
+- `@Public()` untuk healthcheck atau endpoint publik (mis. `GET /`, `GET /projects`).
+- `@Roles(...)` untuk proteksi role; JwtAuthGuard + RolesGuard berjalan global.
+- `WalletAuthGuard` memastikan wallet di payload sama dengan wallet pemilik aksi (admin bypass).
+- `@CurrentUser()` mengambil `sub`, `walletAddress`, atau `role`; tambahkan `@ApiBearerAuth('JWT-auth')` di controller agar Swagger meminta token.
+
+### Access Control Snapshot
+| Module | Public | Role Proteksi Utama |
+|--------|--------|---------------------|
+| Users | - | List: Admin/Staff; Create/Update/Delete: Admin; detail: semua auth |
+| Collectors/Farmers/Lands | - | Create: Collector/Staff/Admin; Update: Staff/Admin; Delete: Admin; detail: semua auth |
+| Projects | GET list/detail | Create: Collector/Staff/Admin; Update: Staff/Admin; Delete: Admin |
+| Files | - | Upload/detail: semua auth; List by ref: auth; Delete: Admin |
+| Buyers | - | Semua aksi: Staff/Admin |
+| Investments | Stats endpoint publik; portfolio stats/top publik | Create: Investor; My data: auth; All data: Admin |
+| Portfolios | Stats/top publik | User portfolio: auth; All: Admin |
+| Profits | - | Deposit: Admin; Claim/project/user view: auth; Pools list: Admin |
+| Submissions (farmer/project) | - | Submit: Collector/Staff/Admin; Approve/Reject: Admin |
+| Refunds | - | Mark refundable: Admin; Claim/list: auth |
+| Notifications | - | Channels: Admin/Staff; Tokens: auth; Create notification: Staff/Admin |
+
+### Swagger Usage
+- Buka `/api`, jalankan `/auth/verify`, salin `accessToken`, klik **Authorize** dengan scheme `JWT-auth`, lalu tes endpoint lain.
+
+### JWT & Security Notes
+- Tambahkan `JWT_SECRET` (>=32 chars) dan `JWT_EXPIRES_IN` ke `.env`.
+- Pesan login wajib memakai timestamp, backend menolak jika lebih dari 60 detik.
+- Gunakan wallet terpisah per environment; private key tetap di `.env`.
+
+---
+
 ## 🏗️ Project Structure
 
 ```
@@ -636,6 +686,15 @@ queryPastEvents(eventName, fromBlock, toBlock): Promise<BlockchainEvent[]>
 syncEventsFromBlock(fromBlock): Promise<void>
 ```
 
+### Ops Playbook & Testing (from Blockchain Integration Guide)
+- Pastikan `.env` memuat `STOMATRADE_CONTRACT_ADDRESS`, `IDRX_TOKEN_CONTRACT_ADDRESS`, dan `PLATFORM_WALLET_PRIVATE_KEY` yang terisi serta wallet terdanai test ETH.
+- Alur uji manual end-to-end:
+  1) `POST /users` (collector) → `POST /collectors` → `POST /farmers`
+  2) `POST /farmer-submissions` → `PATCH /farmer-submissions/:id/approve` (admin) → cek `tokenId` terisi dan transaksi terkonfirmasi
+  3) Lanjutkan ke project submission + invest + deposit/claim profit sesuai kebutuhan
+- Jika transaksi gagal: cek koneksi RPC (`BLOCKCHAIN_RPC_URL`), saldo wallet, dan alamat kontrak; gunakan block explorer untuk verifikasi hash.
+- Event listener dapat di-run untuk sync historis via `queryPastEvents`/`syncEventsFromBlock` bila ada mismatch data.
+
 ---
 
 ## 🗄️ Database Schema Enums
@@ -696,6 +755,10 @@ DIRECT_URL="postgresql://user:password@host:5432/database"
 # Application
 PORT=3000
 NODE_ENV=development
+
+# Authentication
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+JWT_EXPIRES_IN=7d
 
 # Blockchain Configuration
 BLOCKCHAIN_RPC_URL=https://rpc.sepolia-api.lisk.com
@@ -805,6 +868,39 @@ PLATFORM_WALLET_PRIVATE_KEY=0x...
 
 ---
 
+## 📑 API Quick Reference
+
+- Base URL: `http://localhost:3000` (Swagger UI: `/api`). Tambahkan header `Authorization: Bearer <accessToken>` untuk endpoint non-public.
+- Semua list endpoint mendukung pagination `?page=1&limit=10`; payload dan response schema sudah terdokumentasi penuh di Swagger.
+- Kelompok endpoint utama: Auth, Users, Collectors, Farmers, Lands, Files, Buyers + Buyer History, Projects, Notifications, Farmer Submissions, Project Submissions, Investments, Portfolios, Profits, Refunds.
+
+**Contoh request Create User (dari API documentation):**
+```http
+POST /users
+Content-Type: application/json
+
+{
+  "walletAddress": "0x1234567890abcdef1234567890abcdef12345678",
+  "role": "COLLECTOR"
+}
+```
+
+**Contoh response 201:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "walletAddress": "0x1234567890abcdef1234567890abcdef12345678",
+  "role": "COLLECTOR",
+  "createdAt": "2025-01-27T10:30:00.000Z",
+  "updatedAt": "2025-01-27T10:30:00.000Z",
+  "deleted": false
+}
+```
+
+Endpoint lain mengikuti pola serupa: request body sesuai DTO di Swagger, response berisi data + metadata pagination bila applicable.
+
+---
+
 ## 📡 API Features
 
 ### Global Features
@@ -859,14 +955,13 @@ pnpm run start:prod
 - [x] Portfolios module
 - [x] Profits module (deposit & claim)
 - [x] Event listening service
+- [x] Authentication/Authorization (wallet signature + JWT/RBAC guards)
 
 ### 🔄 Pending/TODO
-- [ ] Authentication/Authorization (JWT/Wallet-based)
 - [ ] IPFS integration for metadata storage
-- [ ] Complete event handlers to update database
-- [ ] Cron jobs for portfolio recalculation
+- [ ] Event handler hardening & monitoring
+- [ ] Cron job observability & retries
 - [ ] NFT metadata sync service
-- [ ] Refund mechanism implementation
 - [ ] Rate limiting
 - [ ] Logging to external service
 
@@ -876,8 +971,10 @@ pnpm run start:prod
 
 1. **Private Key**: NEVER commit `PLATFORM_WALLET_PRIVATE_KEY` to git
 2. **Environment**: Use separate wallets for dev/test/production
-3. **Validation**: All inputs validated via class-validator
-4. **Soft Delete**: Data preservation for audit trail
+3. **JWT Secret**: `JWT_SECRET` wajib kuat (>=32 chars); rotate bila bocor
+4. **Signature TTL**: Pesan login kadaluarsa dalam 60 detik; gunakan timestamp terbaru
+5. **Validation**: All inputs validated via class-validator
+6. **Soft Delete**: Data preservation for audit trail
 
 ---
 
