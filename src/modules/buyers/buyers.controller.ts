@@ -38,8 +38,6 @@ import { ROLES } from '@prisma/client';
 export class BuyersController {
   constructor(private readonly buyersService: BuyersService) {}
 
-  // ============ BUYER ENDPOINTS ============
-
   @Roles(ROLES.STAFF, ROLES.ADMIN)
   @Post()
   @ApiOperation({
@@ -162,8 +160,6 @@ export class BuyersController {
   remove(@Param('id', ParseUUIDPipe) id: string): Promise<BuyerResponseDto> {
     return this.buyersService.remove(id);
   }
-
-  // ============ BUYER HISTORY ENDPOINTS ============
 
   @Roles(ROLES.STAFF, ROLES.ADMIN)
   @Post('history')

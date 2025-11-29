@@ -3,12 +3,9 @@ import { IsEnum, IsOptional } from 'class-validator';
 import { ROLES } from '@prisma/client';
 
 export class UpdateUserDto {
-  @ApiProperty({
-    description: 'User role',
-    enum: ROLES,
+  @ApiProperty({enum: ROLES,
     example: 'ADMIN',
-    required: false,
-  })
+    required: false,})
   @IsEnum(ROLES)
   @IsOptional()
   role?: ROLES;

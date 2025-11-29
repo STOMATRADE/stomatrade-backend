@@ -16,9 +16,6 @@ export class CronService {
     private readonly providerService: EthersProviderService,
   ) {}
 
-  /**
-   * Recalculate all user portfolios every hour
-   */
   @Cron(CronExpression.EVERY_HOUR)
   async recalculatePortfolios() {
     this.logger.log('Starting scheduled portfolio recalculation...');
@@ -43,9 +40,6 @@ export class CronService {
     }
   }
 
-  /**
-   * Sync blockchain events every 5 minutes
-   */
   @Cron(CronExpression.EVERY_5_MINUTES)
   async syncBlockchainEvents() {
     if (this.isSyncing) {
@@ -59,12 +53,10 @@ export class CronService {
     try {
       const currentBlock = await this.providerService.getBlockNumber();
 
-      // If first run, start from 1000 blocks ago
       if (this.lastSyncedBlock === 0) {
         this.lastSyncedBlock = Math.max(0, currentBlock - 1000);
       }
 
-      // Sync events from last synced block
       await this.syncEventsFromBlock(this.lastSyncedBlock, currentBlock);
       
       this.lastSyncedBlock = currentBlock;
@@ -76,15 +68,12 @@ export class CronService {
     }
   }
 
-  /**
-   * Cleanup expired auth nonces every 10 minutes
-   */
   @Cron(CronExpression.EVERY_10_MINUTES)
   async cleanupExpiredData() {
     this.logger.log('Starting scheduled cleanup...');
 
     try {
-      // Cleanup pending transactions older than 24 hours
+      
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       
       const staleTransactions = await this.prisma.blockchainTransaction.updateMany({
@@ -108,21 +97,17 @@ export class CronService {
     }
   }
 
-  /**
-   * Daily statistics calculation at midnight
-   */
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async calculateDailyStats() {
     this.logger.log('Calculating daily statistics...');
 
     try {
-      // Get totals
+      
       const totalUsers = await this.prisma.user.count({ where: { deleted: false } });
       const totalFarmers = await this.prisma.farmer.count({ where: { deleted: false } });
       const totalProjects = await this.prisma.project.count({ where: { deleted: false } });
       const totalInvestments = await this.prisma.investment.count({ where: { deleted: false } });
 
-      // Get minted counts
       const mintedFarmers = await this.prisma.farmer.count({
         where: { tokenId: { not: null }, deleted: false },
       });
@@ -130,14 +115,11 @@ export class CronService {
         where: { tokenId: { not: null }, deleted: false },
       });
 
-      // Log statistics
       this.logger.log(`Daily Stats - Users: ${totalUsers}, Farmers: ${totalFarmers} (${mintedFarmers} minted), Projects: ${totalProjects} (${mintedProjects} minted), Investments: ${totalInvestments}`);
     } catch (error) {
       this.logger.error('Error calculating daily stats', error);
     }
   }
-
-  // ============ HELPER METHODS ============
 
   private async updateUserPortfolio(userId: string) {
     const investments = await this.prisma.investment.findMany({
@@ -249,14 +231,12 @@ export class CronService {
   private async handleProjectCreatedEvent(event: any) {
     const { args, transactionHash, blockNumber } = event;
     
-    // Check if we already processed this transaction
     const existing = await this.prisma.blockchainTransaction.findUnique({
       where: { transactionHash },
     });
     
     if (existing) return;
 
-    // Create transaction record
     await this.prisma.blockchainTransaction.create({
       data: {
         transactionHash,
@@ -373,5 +353,4 @@ export class CronService {
       },
     });
   }
-}
-
+}

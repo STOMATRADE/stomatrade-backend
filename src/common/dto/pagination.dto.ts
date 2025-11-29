@@ -56,10 +56,10 @@ export class PaginationMetaDto {
 
 export class PaginatedResponseDto<T> {
   @ApiProperty({
-    description: 'Array of data items',
+    description: 'Array of items',
     isArray: true,
   })
-  data: T[];
+  items: T[];
 
   @ApiProperty({
     description: 'Pagination metadata',
@@ -67,8 +67,8 @@ export class PaginatedResponseDto<T> {
   })
   meta: PaginationMetaDto;
 
-  constructor(data: T[], total: number, page: number, limit: number) {
-    this.data = data;
+  constructor(items: T[], total: number, page: number, limit: number) {
+    this.items = items;
     this.meta = {
       total,
       page,

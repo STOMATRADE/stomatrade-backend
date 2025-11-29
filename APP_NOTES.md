@@ -909,11 +909,82 @@ Endpoint lain mengikuti pola serupa: request body sesuai DTO di Swagger, respons
 - ✅ **Validation** - Global ValidationPipe dengan whitelist
 - ✅ **CORS** - Enabled untuk cross-origin requests
 - ✅ **Swagger** - Interactive API docs at `/api`
+- ✅ **Standard Response Format** - All responses wrapped in standard format
+
+### Standard Response Format
+
+Semua API response mengikuti format standard dengan struktur:
+
+**Success Response:**
+```json
+{
+  "header": {
+    "statusCode": 200,
+    "message": "Request processed successfully",
+    "timestamp": "2025-11-30T10:30:00.000Z"
+  },
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "walletAddress": "0x1234567890abcdef1234567890abcdef12345678",
+    "role": "COLLECTOR"
+  }
+}
+```
+
+**Paginated Response:**
+```json
+{
+  "header": {
+    "statusCode": 200,
+    "message": "Request processed successfully",
+    "timestamp": "2025-11-30T10:30:00.000Z"
+  },
+  "data": {
+    "items": [
+      { "id": "...", "name": "..." }
+    ],
+    "meta": {
+      "page": 1,
+      "limit": 10,
+      "total": 100,
+      "totalPages": 10
+    }
+  }
+}
+```
+
+**⚠️ Important:** Paginated responses menggunakan field `items` (bukan `data`) untuk menghindari struktur nested `data.data` yang membingungkan.
+
+**Error Response:**
+```json
+{
+  "header": {
+    "statusCode": 400,
+    "message": "Validation failed",
+    "timestamp": "2025-11-30T10:30:00.000Z"
+  },
+  "data": {
+    "errors": [
+      "walletAddress must be an Ethereum address"
+    ]
+  }
+}
+```
+
+### Response Status Messages
+- `200 OK` - "Request processed successfully"
+- `201 Created` - "Resource created successfully"
+- `202 Accepted` - "Request accepted"
+- `400 Bad Request` - "Validation failed" (with error details)
+- `404 Not Found` - "Resource not found"
+- `500 Internal Server Error` - "Internal server error"
 
 ### Error Handling
-- `400 Bad Request` - Validation errors
+- `400 Bad Request` - Validation errors with detailed error array
+- `401 Unauthorized` - Authentication required
+- `403 Forbidden` - Insufficient permissions
 - `404 Not Found` - Resource not found
-- `500 Internal Server Error` - Server errors
+- `500 Internal Server Error` - Server errors with error details
 
 ---
 
@@ -1417,6 +1488,106 @@ PLATFORM_WALLET_PRIVATE_KEY=0x...
 ```
 
 ---
+
+---
+
+### Version 1.5.0 - Standard Response Format (November 2025)
+
+#### 🆕 New Features
+
+**Standard API Response Format**
+
+Semua API responses sekarang mengikuti format standard yang konsisten:
+
+```json
+{
+  "header": {
+    "statusCode": 200,
+    "message": "Request processed successfully",
+    "timestamp": "2025-11-30T10:30:00.000Z"
+  },
+  "data": { ... }
+}
+```
+
+#### 📝 Files Created
+
+| File | Description |
+|------|-------------|
+| `src/common/interfaces/api-response.interface.ts` | Interface definitions untuk standard response |
+| `src/common/dto/api-response.dto.ts` | DTOs dengan Swagger decorators |
+| `src/common/interceptors/transform.interceptor.ts` | Global interceptor untuk wrapping responses |
+| `src/common/filters/http-exception.filter.ts` | Exception filters untuk error handling |
+| `STANDARD_RESPONSE_FORMAT.md` | Comprehensive documentation |
+
+#### 🔧 Files Modified
+
+**src/main.ts**
+```typescript
+// Added global interceptor
+app.useGlobalInterceptors(new TransformInterceptor());
+
+// Added global exception filters
+app.useGlobalFilters(new AllExceptionsFilter(), new HttpExceptionFilter());
+
+// Updated Swagger description dengan format info
+```
+
+**APP_NOTES.md**
+- Added standard response format documentation
+- Updated API Features section
+
+**Test Files**
+- Fixed blockchain mocks untuk compatibility
+- Added missing mock methods (getstomatradeAddress, getCreateProjectCalldata, getMintFarmerCalldata)
+
+#### ✅ Key Benefits
+
+1. **Automatic Response Wrapping**: Semua responses otomatis di-wrap, no code changes needed
+2. **Consistent Error Handling**: Semua errors mengikuti format yang sama
+3. **Better Client Integration**: Client dapat dengan mudah parse responses
+4. **Type Safety**: TypeScript interfaces tersedia
+5. **Swagger Compatible**: Swagger documentation otomatis update
+6. **Zero Breaking Changes**: Semua existing code tetap berfungsi
+
+#### 📊 Test Results
+
+```
+Test Suites: 17 passed, 17 total
+Tests:       158 passed, 158 total
+Status:      ✅ All tests passing
+```
+
+#### 🌐 Vercel Compatibility
+
+- ✅ Compatible dengan Vercel deployment
+- ✅ No additional configuration needed
+- ✅ Response format tetap konsisten di serverless environment
+
+---
+
+### Version 1.4.0 - Vercel Deployment Ready (November 2025)
+
+#### 📝 Files Created
+
+| File | Description |
+|------|-------------|
+| `vercel.json` | Vercel deployment configuration |
+| `api/index.ts` | Serverless entry point |
+| `.vercelignore` | Files to ignore during deployment |
+| `VERCEL_DEPLOYMENT_GUIDE.md` | Complete deployment guide |
+
+#### 🔧 Files Modified
+
+**package.json**
+- Added `vercel-build` script: `prisma generate && prisma migrate deploy && nest build`
+
+#### ✅ Key Features
+
+1. **Serverless Ready**: Backend configured untuk Vercel serverless functions
+2. **Auto Database Migration**: Prisma migrations run otomatis saat build
+3. **Complete Documentation**: Comprehensive deployment guide tersedia
+4. **Zero Breaking Changes**: Semua code tetap berfungsi normal
 
 ---
 

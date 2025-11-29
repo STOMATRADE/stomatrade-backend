@@ -1,82 +1,47 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LandResponseDto {
-  @ApiProperty({
-    description: 'Unique identifier',
-    example: '880e8400-e29b-41d4-a716-446655440003',
-  })
+  @ApiProperty({example: '880e8400-e29b-41d4-a716-446655440003',})
   id: string;
 
-  @ApiProperty({
-    description: 'Associated farmer ID',
-    example: '770e8400-e29b-41d4-a716-446655440002',
-  })
+  @ApiProperty({example: '770e8400-e29b-41d4-a716-446655440002',})
   farmerId: string;
 
-  @ApiProperty({
-    description: 'NFT Token ID for the land',
-    example: 2001,
-  })
+  @ApiProperty({example: 2001,})
   tokenId: number;
 
-  @ApiProperty({
-    description: 'GPS Latitude coordinate',
-    example: -6.2,
-  })
+  @ApiProperty({example: -6.2,})
   latitude: number;
 
-  @ApiProperty({
-    description: 'GPS Longitude coordinate',
-    example: 106.816666,
-  })
+  @ApiProperty({example: 106.816666,})
   longitude: number;
 
-  @ApiProperty({
-    description: 'Land address/location',
-    example: 'Plot A1, Desa Makmur',
-  })
+  @ApiProperty({example: 'Plot A1, Desa Makmur',})
   address: string;
 
-  @ApiProperty({
-    description: 'Creation timestamp',
-  })
+  @ApiProperty()
   createdAt: Date;
 
-  @ApiProperty({
-    description: 'Last update timestamp',
-  })
+  @ApiProperty()
   updatedAt: Date;
 
-  @ApiProperty({
-    description: 'Soft delete flag',
-    example: false,
-  })
+  @ApiProperty({example: false,})
   deleted: boolean;
 }
 
 export class LandWithRelationsDto extends LandResponseDto {
-  @ApiProperty({
-    description: 'Farmer data',
-  })
+  @ApiProperty()
   farmer?: any;
 
-  @ApiProperty({
-    description: 'List of projects on this land',
-    type: 'array',
-  })
+  @ApiProperty({type: 'array',})
   projects?: any[];
 }
 
 export class PaginatedLandResponseDto {
-  @ApiProperty({
-    description: 'List of lands',
-    type: [LandResponseDto],
-  })
-  data: LandResponseDto[];
+  @ApiProperty({type: [LandResponseDto],})
+  items: LandResponseDto[];
 
-  @ApiProperty({
-    description: 'Pagination metadata',
-  })
+  @ApiProperty()
   meta: {
     total: number;
     page: number;

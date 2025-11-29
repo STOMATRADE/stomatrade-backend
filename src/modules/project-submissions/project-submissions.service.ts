@@ -20,13 +20,9 @@ export class ProjectSubmissionsService {
     private readonly stomaTradeContract: StomaTradeContractService,
   ) {}
 
-  /**
-   * Submit a project for blockchain minting approval
-   */
   async create(dto: CreateProjectSubmissionDto) {
     this.logger.log(`Creating project submission for project ${dto.projectId}`);
 
-    // Check if project exists
     const project = await this.prisma.project.findUnique({
       where: { id: dto.projectId },
       include: {
@@ -39,7 +35,6 @@ export class ProjectSubmissionsService {
       throw new NotFoundException(`Project with ID ${dto.projectId} not found`);
     }
 
-    // Check if project already has a submission
     const existingSubmission = await this.prisma.projectSubmission.findUnique({
       where: { projectId: dto.projectId },
     });
@@ -50,7 +45,6 @@ export class ProjectSubmissionsService {
       );
     }
 
-    // Create submission
     const submission = await this.prisma.projectSubmission.create({
       data: {
         projectId: dto.projectId,
@@ -83,9 +77,6 @@ export class ProjectSubmissionsService {
     };
   }
 
-  /**
-   * Get all project submissions with optional status filter
-   */
   async findAll(status?: SUBMISSION_STATUS) {
     const where = status ? { status, deleted: false } : { deleted: false };
 
@@ -106,9 +97,6 @@ export class ProjectSubmissionsService {
     });
   }
 
-  /**
-   * Get a single project submission by ID
-   */
   async findOne(id: string) {
     const submission = await this.prisma.projectSubmission.findUnique({
       where: { id },
@@ -132,23 +120,17 @@ export class ProjectSubmissionsService {
     return submission;
   }
 
-  /**
-   * Approve project submission and mint Project NFT on blockchain
-   */
   async approve(id: string, dto: ApproveProjectSubmissionDto) {
     this.logger.log(`Approving project submission ${id}`);
 
-    // Get submission
     const submission = await this.findOne(id);
 
-    // Check status
     if (submission.status !== SUBMISSION_STATUS.SUBMITTED) {
       throw new BadRequestException(
         `Cannot approve submission with status: ${submission.status}`,
       );
     }
 
-    // Update status to APPROVED
     await this.prisma.projectSubmission.update({
       where: { id },
       data: {
@@ -157,13 +139,11 @@ export class ProjectSubmissionsService {
       },
     });
 
-    // Mint Project NFT on blockchain
     try {
       this.logger.log(
         `Minting Project NFT - Value: ${submission.valueProject}, MaxCrowdFunding: ${submission.maxCrowdFunding}, CID: ${submission.metadataCid || 'none'}`,
       );
 
-      // Convert string amounts to bigint
       const valueProject = BigInt(submission.valueProject);
       const maxCrowdFunding = BigInt(submission.maxCrowdFunding);
       const cid = submission.metadataCid || '';
@@ -174,7 +154,6 @@ export class ProjectSubmissionsService {
         cid,
       );
 
-      // Create blockchain transaction record
       const blockchainTx = await this.prisma.blockchainTransaction.create({
         data: {
           transactionHash: txResult.hash,
@@ -188,7 +167,6 @@ export class ProjectSubmissionsService {
         },
       });
 
-      // Parse event to get minted project token ID
       let mintedTokenId: number | null = null;
       if (txResult.receipt) {
         const projectCreatedEvent =
@@ -214,7 +192,6 @@ export class ProjectSubmissionsService {
         }
       }
 
-      // Update submission with minted status and token ID
       const updatedSubmission = await this.prisma.projectSubmission.update({
         where: { id },
         data: {
@@ -233,7 +210,6 @@ export class ProjectSubmissionsService {
         },
       });
 
-      // Update project with token ID
       if (mintedTokenId !== null) {
         await this.prisma.project.update({
           where: { id: submission.projectId },
@@ -248,7 +224,6 @@ export class ProjectSubmissionsService {
     } catch (error) {
       this.logger.error('Error minting Project NFT', error);
 
-      // Update status back to SUBMITTED on error
       await this.prisma.projectSubmission.update({
         where: { id },
         data: {
@@ -263,23 +238,17 @@ export class ProjectSubmissionsService {
     }
   }
 
-  /**
-   * Reject project submission
-   */
   async reject(id: string, dto: RejectProjectSubmissionDto) {
     this.logger.log(`Rejecting project submission ${id}`);
 
-    // Get submission
     const submission = await this.findOne(id);
 
-    // Check status
     if (submission.status !== SUBMISSION_STATUS.SUBMITTED) {
       throw new BadRequestException(
         `Cannot reject submission with status: ${submission.status}`,
       );
     }
 
-    // Update status to REJECTED
     const rejectedSubmission = await this.prisma.projectSubmission.update({
       where: { id },
       data: {

@@ -39,8 +39,6 @@ import { ROLES } from '@prisma/client';
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
-  // ============ CHANNEL ENDPOINTS ============
-
   @Roles(ROLES.ADMIN)
   @Post('channels')
   @ApiOperation({
@@ -138,8 +136,6 @@ export class NotificationsController {
   ): Promise<ChannelNotificationResponseDto> {
     return this.notificationsService.removeChannel(id);
   }
-
-  // ============ NOTIFICATION ENDPOINTS ============
 
   @Roles(ROLES.STAFF, ROLES.ADMIN)
   @Post()
@@ -244,8 +240,6 @@ export class NotificationsController {
   ): Promise<NotificationResponseDto> {
     return this.notificationsService.removeNotification(id);
   }
-
-  // ============ TOKEN ENDPOINTS ============
 
   @Post('tokens')
   @ApiOperation({

@@ -1,63 +1,36 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class BuyerResponseDto {
-  @ApiProperty({
-    description: 'Unique identifier',
-    example: 'aa0e8400-e29b-41d4-a716-446655440005',
-  })
+  @ApiProperty({example: 'aa0e8400-e29b-41d4-a716-446655440005',})
   id: string;
 
-  @ApiProperty({
-    description: 'Company name',
-    example: 'PT Agro Makmur',
-  })
+  @ApiProperty({example: 'PT Agro Makmur',})
   companyName: string;
 
-  @ApiProperty({
-    description: 'Company address',
-    example: 'Jl. Industri No. 789, Surabaya',
-  })
+  @ApiProperty({example: 'Jl. Industri No. 789, Surabaya',})
   companyAddress: string;
 
-  @ApiProperty({
-    description: 'Contact phone number',
-    example: '081234567890',
-  })
+  @ApiProperty({example: '081234567890',})
   phoneNumber: string;
 
-  @ApiProperty({
-    description: 'Company email',
-    example: 'info@agromakmur.com',
-  })
+  @ApiProperty({example: 'info@agromakmur.com',})
   companyMail: string;
 
-  @ApiProperty({
-    description: 'Creation timestamp',
-  })
+  @ApiProperty()
   createdAt: Date;
 
-  @ApiProperty({
-    description: 'Last update timestamp',
-  })
+  @ApiProperty()
   updatedAt: Date;
 
-  @ApiProperty({
-    description: 'Soft delete flag',
-    example: false,
-  })
+  @ApiProperty({example: false,})
   deleted: boolean;
 }
 
 export class PaginatedBuyerResponseDto {
-  @ApiProperty({
-    description: 'List of buyers',
-    type: [BuyerResponseDto],
-  })
-  data: BuyerResponseDto[];
+  @ApiProperty({type: [BuyerResponseDto],})
+  items: BuyerResponseDto[];
 
-  @ApiProperty({
-    description: 'Pagination metadata',
-  })
+  @ApiProperty()
   meta: {
     total: number;
     page: number;

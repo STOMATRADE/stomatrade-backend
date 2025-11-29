@@ -18,13 +18,9 @@ export class ProfitsService {
     private readonly stomaTradeContract: StomaTradeContractService,
   ) {}
 
-  /**
-   * Admin deposits profit for a project
-   */
   async depositProfit(dto: DepositProfitDto) {
     this.logger.log(`Depositing profit for project ${dto.projectId}`);
 
-    // Verify project exists and has tokenId
     const project = await this.prisma.project.findUnique({
       where: { id: dto.projectId },
     });
@@ -40,7 +36,7 @@ export class ProfitsService {
     }
 
     try {
-      // Call blockchain depositProfit function
+      
       const projectTokenId = BigInt(project.tokenId);
       const amount = BigInt(dto.amount);
 
@@ -53,7 +49,6 @@ export class ProfitsService {
         amount,
       );
 
-      // Get or create profit pool
       let profitPool = await this.prisma.profitPool.findUnique({
         where: { projectId: dto.projectId },
       });
@@ -68,7 +63,7 @@ export class ProfitsService {
           },
         });
       } else {
-        // Update profit pool
+        
         const newTotalDeposited =
           BigInt(profitPool.totalDeposited) + BigInt(dto.amount);
         const newRemainingProfit =
@@ -102,15 +97,11 @@ export class ProfitsService {
     }
   }
 
-  /**
-   * Investor claims profit from a project
-   */
   async claimProfit(dto: ClaimProfitDto) {
     this.logger.log(
       `User ${dto.userId} claiming profit from project ${dto.projectId}`,
     );
 
-    // Verify user exists
     const user = await this.prisma.user.findUnique({
       where: { id: dto.userId },
     });
@@ -119,7 +110,6 @@ export class ProfitsService {
       throw new NotFoundException(`User with ID ${dto.userId} not found`);
     }
 
-    // Verify project exists and has tokenId
     const project = await this.prisma.project.findUnique({
       where: { id: dto.projectId },
     });
@@ -134,7 +124,6 @@ export class ProfitsService {
       );
     }
 
-    // Verify user has invested in this project
     const investment = await this.prisma.investment.findFirst({
       where: {
         userId: dto.userId,
@@ -150,7 +139,7 @@ export class ProfitsService {
     }
 
     try {
-      // Call blockchain claimProfit function
+      
       const projectTokenId = BigInt(project.tokenId);
 
       this.logger.log(
@@ -159,7 +148,6 @@ export class ProfitsService {
 
       const txResult = await this.stomaTradeContract.claimProfit(projectTokenId);
 
-      // Parse event to get claimed amount
       let claimedAmount = '0';
       if (txResult.receipt) {
         const profitClaimedEvent =
@@ -183,13 +171,12 @@ export class ProfitsService {
         }
       }
 
-      // Get or create profit pool
       let profitPool = await this.prisma.profitPool.findUnique({
         where: { projectId: dto.projectId },
       });
 
       if (!profitPool) {
-        // If no profit pool exists, create one with zero values
+        
         profitPool = await this.prisma.profitPool.create({
           data: {
             projectId: dto.projectId,
@@ -199,7 +186,7 @@ export class ProfitsService {
           },
         });
       } else {
-        // Update profit pool
+        
         const newTotalClaimed =
           BigInt(profitPool.totalClaimed) + BigInt(claimedAmount);
         const newRemainingProfit =
@@ -214,7 +201,6 @@ export class ProfitsService {
         });
       }
 
-      // Create profit claim record
       const profitClaim = await this.prisma.profitClaim.create({
         data: {
           userId: dto.userId,
@@ -246,9 +232,6 @@ export class ProfitsService {
     }
   }
 
-  /**
-   * Get profit pool for a project
-   */
   async getProjectProfitPool(projectId: string) {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
@@ -292,9 +275,6 @@ export class ProfitsService {
     return profitPool;
   }
 
-  /**
-   * Get user's profit claims
-   */
   async getUserProfitClaims(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -324,9 +304,6 @@ export class ProfitsService {
     });
   }
 
-  /**
-   * Get all profit pools
-   */
   async getAllProfitPools() {
     return await this.prisma.profitPool.findMany({
       where: { deleted: false },

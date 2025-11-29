@@ -72,7 +72,7 @@ describe('UsersService', () => {
         take: 10,
         orderBy: { createdAt: 'desc' },
       });
-      expect(result.data).toEqual(users);
+      expect(result.items).toEqual(users);
       expect(result.meta.total).toBe(1);
     });
 
