@@ -8,7 +8,8 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
-import { PrivyClient } from '@privy-io/server-auth';
+// Type-only import - actual PrivyClient is lazy-loaded to prevent serverless crash
+import type { PrivyClient } from '@privy-io/server-auth';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RequestNonceDto } from './dto/request-nonce.dto';
 import { VerifySignatureDto } from './dto/verify-signature.dto';
@@ -32,7 +33,9 @@ export interface AuthResponse {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly privyClient: PrivyClient;
+  private privyClient: PrivyClient | null = null;
+  private privyInitialized = false;
+  private privyInitError: Error | null = null;
 
   private nonceStore: Map<string, { nonce: string; expiresAt: Date }> = new Map();
 
@@ -43,22 +46,49 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {
-    const privyAppId = this.configService.get<string>('PRIVY_APP_ID');
-    const privyAppSecret = this.configService.get<string>('PRIVY_APP_SECRET');
+    // Don't initialize Privy in constructor to prevent serverless crash
+    // Will lazy-load when needed
+    this.logger.log('AuthService initialized - Privy will be loaded on demand');
+  }
 
-    if (privyAppId && privyAppSecret) {
-      try {
-        this.privyClient = new PrivyClient(privyAppId, privyAppSecret);
-        this.logger.log('✅ Privy client initialized successfully');
-      } catch (error) {
-        this.logger.error('❌ Failed to initialize Privy client - Privy wallet auth will not work', error);
-        this.logger.error('Privy embedded wallet authentication will be REJECTED (fail-closed)');
+  /**
+   * Lazy initialization of Privy client
+   * Only loads when verifyPrivyEmbeddedWallet is called
+   */
+  private async initPrivyClient(): Promise<PrivyClient | null> {
+    // Return cached client if already initialized
+    if (this.privyInitialized) {
+      return this.privyClient;
+    }
+
+    // If previous initialization failed, don't retry
+    if (this.privyInitError) {
+      this.logger.error('Privy initialization previously failed, rejecting request');
+      return null;
+    }
+
+    try {
+      const privyAppId = this.configService.get<string>('PRIVY_APP_ID');
+      const privyAppSecret = this.configService.get<string>('PRIVY_APP_SECRET');
+
+      if (!privyAppId || !privyAppSecret) {
+        this.logger.warn('⚠️ Privy credentials not configured - rejecting Privy wallet auth');
+        this.privyInitialized = true;
+        return null;
       }
-    } else {
-      this.logger.warn('⚠️ Privy credentials not configured');
-      if (!privyAppId) this.logger.warn('  - PRIVY_APP_ID is missing');
-      if (!privyAppSecret) this.logger.warn('  - PRIVY_APP_SECRET is missing');
-      this.logger.warn('Privy embedded wallet authentication will be REJECTED (fail-closed)');
+
+      // Lazy load the PrivyClient module
+      const { PrivyClient } = await import('@privy-io/server-auth');
+      this.privyClient = new PrivyClient(privyAppId, privyAppSecret);
+      this.privyInitialized = true;
+      this.logger.log('✅ Privy client lazy-loaded successfully');
+
+      return this.privyClient;
+    } catch (error) {
+      this.logger.error('❌ Failed to lazy-load Privy client', error);
+      this.privyInitError = error as Error;
+      this.privyInitialized = true;
+      return null;
     }
   }
 
@@ -274,17 +304,30 @@ export class AuthService {
     recoveredAddress: string,
   ): Promise<boolean> {
     try {
-      if (!this.privyClient) {
-        return false; 
+      // SECURITY: FAIL-CLOSED APPROACH
+      // Lazy load Privy client on first use
+      const client = await this.initPrivyClient();
+
+      if (!client) {
+        this.logger.error('SECURITY: Privy client not available - REJECTING authentication');
+        return false; // FAIL-CLOSED: Reject if we cannot verify with Privy
       }
 
+      this.logger.log(`Verifying Privy embedded wallet for: ${expectedWallet}`);
+      this.logger.log(`  Signature created by: ${recoveredAddress.toLowerCase()}`);
+
       try {
-        const user = await this.privyClient.getUserByWalletAddress(expectedWallet);
+        // Get user by wallet address from Privy
+        const user = await client.getUserByWalletAddress(expectedWallet);
 
         if (!user) {
-          return false; 
+          this.logger.warn(`SECURITY: No Privy user found for wallet: ${expectedWallet}`);
+          return false; // FAIL-CLOSED: Reject if wallet not registered with Privy
         }
 
+        this.logger.log(`Privy user found: ${user.id}`);
+
+        // Check if the wallet is an embedded wallet
         const embeddedWallet = user.linkedAccounts.find(
           (account) =>
             account.type === 'wallet' &&
@@ -293,15 +336,20 @@ export class AuthService {
         );
 
         if (embeddedWallet) {
+          this.logger.log(`✅ VERIFIED: Privy embedded wallet authenticated successfully`);
           return true;
         } else {
-          return false;
+          this.logger.warn(`SECURITY: Wallet ${expectedWallet} is not a Privy embedded wallet`);
+          return false; // FAIL-CLOSED: Reject if not an embedded wallet
         }
       } catch (privyError) {
-        return false; 
+        // SECURITY: FAIL-CLOSED on API failure
+        this.logger.error('SECURITY: Privy API verification failed - REJECTING authentication', privyError);
+        return false; // FAIL-CLOSED: Reject if Privy API is unavailable or fails
       }
     } catch (error) {
-      return false;
+      this.logger.error('SECURITY: Error verifying Privy embedded wallet - REJECTING', error);
+      return false; // FAIL-CLOSED: Reject on any unexpected error
     }
   }
 
