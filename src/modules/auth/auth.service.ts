@@ -37,8 +37,6 @@ export class AuthService {
   private privyInitialized = false;
   private privyInitError: Error | null = null;
 
-  private nonceStore: Map<string, { nonce: string; expiresAt: Date }> = new Map();
-
   private readonly SIGNATURE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
   constructor(
@@ -94,15 +92,27 @@ export class AuthService {
 
   async requestNonce(dto: RequestNonceDto): Promise<{ nonce: string; message: string }> {
     const walletAddress = dto.walletAddress.toLowerCase();
-    
+
     if (!ethers.isAddress(walletAddress)) {
       throw new BadRequestException('Invalid wallet address');
     }
 
     const nonce = this.generateNonce();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); 
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    this.nonceStore.set(walletAddress, { nonce, expiresAt });
+    // Delete expired nonces for this wallet
+    await this.prisma.nonce.deleteMany({
+      where: { walletAddress },
+    });
+
+    // Store new nonce in database
+    await this.prisma.nonce.create({
+      data: {
+        walletAddress,
+        nonce,
+        expiresAt,
+      },
+    });
 
     const message = this.createSignMessage(walletAddress, nonce);
 
@@ -121,31 +131,46 @@ export class AuthService {
       return this.loginByWallet(dto);
     }
 
-    const storedData = this.nonceStore.get(walletAddress);
-    if (!storedData) {
+    // Clean up expired nonces first
+    await this.prisma.nonce.deleteMany({
+      where: {
+        expiresAt: {
+          lt: new Date(),
+        },
+      },
+    });
+
+    // Get nonce from database
+    const storedNonce = await this.prisma.nonce.findFirst({
+      where: { walletAddress },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!storedNonce) {
       throw new UnauthorizedException('Nonce not found. Please request a new nonce.');
     }
 
-    if (new Date() > storedData.expiresAt) {
-      this.nonceStore.delete(walletAddress);
+    if (new Date() > storedNonce.expiresAt) {
+      await this.prisma.nonce.delete({ where: { id: storedNonce.id } });
       throw new UnauthorizedException('Nonce expired. Please request a new nonce.');
     }
 
-    const message = this.createSignMessage(walletAddress, storedData.nonce);
+    const message = this.createSignMessage(walletAddress, storedNonce.nonce);
     const isValid = this.verifyWalletSignature(message, dto.signature, walletAddress);
 
     if (!isValid) {
       throw new UnauthorizedException('Invalid signature');
     }
 
-    this.nonceStore.delete(walletAddress);
+    // Delete used nonce
+    await this.prisma.nonce.delete({ where: { id: storedNonce.id } });
 
     let user = await this.prisma.user.findUnique({
       where: { walletAddress },
     });
 
     if (!user) {
-      
+
       user = await this.prisma.user.create({
         data: {
           walletAddress,

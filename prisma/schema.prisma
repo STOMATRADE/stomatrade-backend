@@ -418,3 +418,14 @@ model AppProject {
   updatedAt       DateTime @updatedAt
   deleted         Boolean  @default(false)
 }
+
+model Nonce {
+  id            String   @id @default(uuid())
+  walletAddress String
+  nonce         String
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+
+  @@index([walletAddress])
+  @@map("nonces")
+}
