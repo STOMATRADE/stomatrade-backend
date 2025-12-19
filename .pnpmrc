@@ -1,0 +1,3 @@
+shamefully-hoist=true
+public-hoist-pattern[]=@privy-io/*
+public-hoist-pattern[]=@hpke/*
