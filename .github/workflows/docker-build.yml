@@ -1,4 +1,4 @@
-name: Deploy Stoma Trade API (Production)
+name: Deploy to Production
 
 on:
   push:
@@ -10,40 +10,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repo (optional, karena deploy via SSH)
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup SSH key
-      - name: Setup SSH
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa_stomatrade
           chmod 600 ~/.ssh/id_rsa_stomatrade
+          ssh-keyscan -H ${{ secrets.LOGIN_VPS }} >> ~/.ssh/known_hosts
 
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
-
-      # 3️⃣ Deploy via SSH
-      - name: Deploy to VPS
+      - name: Deploy via SSH
         run: |
-          ssh -i ~/.ssh/id_rsa_stomatrade \
-              -o StrictHostKeyChecking=no \
-              ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
-            set -e
-
-            cd ~/app/stomatade_api
-            git pull origin production
-
-            docker stop stomatade_api || true
-            docker rm stomatade_api || true
-
-            docker build -t stomatade_api:latest .
-
+          ssh -i ~/.ssh/id_rsa_stomatrade -o StrictHostKeyChecking=no ${{ secrets.LOGIN_VPS }} "
+            cd ~/app/stomatrade-backend &&
+            git pull origin main &&
+            docker stop stomatrade_backend || true &&
+            docker rm stomatrade_backend || true &&
+            docker build -t stomatrade_backend:latest . &&
             docker run -d \
-              --name stomatade_api \
+              --name stomatrade_backend \
               -p 3000:3000 \
               --env-file .env \
-              stomatade_api:latest
-
+              stomatrade_backend:latest &&
             docker image prune -f
-          EOF
+          "
