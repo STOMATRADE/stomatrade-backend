@@ -170,6 +170,7 @@ describe('ProjectSubmissionsService', () => {
         ...mockProject,
         tokenId: 3001,
       });
+      prisma.file.findMany.mockResolvedValue([]);
 
       contractService.createProject.mockResolvedValue({
         hash: '0xTxHash',

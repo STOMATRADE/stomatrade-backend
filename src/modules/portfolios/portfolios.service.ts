@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PortfolioDetailResponseDto } from './dto/portfolio-detail-response.dto';
 
 @Injectable()
 export class PortfoliosService {
@@ -55,19 +56,144 @@ export class PortfoliosService {
 
     return {
       ...portfolio,
-      investments: investments.map((inv) => ({
-        id: inv.id,
-        projectId: inv.projectId,
-        projectName: inv.project.commodity,
-        farmerName: inv.project.farmer.name,
-        amount: inv.amount,
-        receiptTokenId: inv.receiptTokenId,
-        investedAt: inv.investedAt,
-        profitClaimed: inv.profitClaims
+      investments: investments.map((inv) => {
+        const profitClaimed = inv.profitClaims
           .reduce((sum, claim) => sum + BigInt(claim.amount), BigInt(0))
-          .toString(),
-        profitClaimsCount: inv.profitClaims.length,
-      })),
+          .toString();
+
+        const fundingPrice =
+          inv.project.totalKilos && inv.project.totalKilos > 0
+            ? (Number(inv.amount) / inv.project.totalKilos).toFixed(0)
+            : '0';
+
+        const totalFunding = inv.project.volume ? inv.project.volume.toFixed(0) : '0';
+
+        const investmentAmount = BigInt(inv.amount);
+        const claimedProfit = BigInt(profitClaimed);
+        const margin =
+          investmentAmount > BigInt(0)
+            ? Number((claimedProfit * BigInt(10000)) / investmentAmount) / 100
+            : 0;
+
+        return {
+          id: inv.id,
+          projectId: inv.projectId,
+          projectName: inv.project.commodity,
+          farmerName: inv.project.farmer.name,
+          amount: inv.amount,
+          receiptTokenId: inv.receiptTokenId,
+          investedAt: inv.investedAt,
+          profitClaimed,
+          profitClaimsCount: inv.profitClaims.length,
+          fundingPrice,
+          totalFunding,
+          margin,
+        };
+      }),
+    };
+  }
+
+  async getUserPortfolioDetail(
+    userId: string,
+    projectId: string,
+  ): Promise<PortfolioDetailResponseDto> {
+    this.logger.log(`Getting detailed portfolio for user ${userId} and project ${projectId}`);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    const investment = await this.prisma.investment.findFirst({
+      where: {
+        userId,
+        projectId,
+        deleted: false,
+      },
+      include: {
+        project: {
+          include: {
+            collector: true,
+            farmer: true,
+            land: true,
+            projectSubmission: true,
+            investments: {
+              where: { deleted: false },
+            },
+          },
+        },
+        profitClaims: true,
+      },
+    });
+
+    if (!investment) {
+      throw new NotFoundException(
+        `Investment not found for user ${userId} in project ${projectId}`,
+      );
+    }
+
+    const project = investment.project;
+
+    const file = await this.prisma.file.findFirst({
+      where: {
+        reffId: project.id,
+        deleted: false,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const currentFunding = project.investments.reduce(
+      (sum, inv) => sum + BigInt(inv.amount),
+      BigInt(0),
+    );
+
+    const uniqueInvestors = new Set(project.investments.map((inv) => inv.userId)).size;
+
+    const maxFunding = BigInt(project.projectSubmission?.maxCrowdFunding || '0');
+    const fundingPercentage =
+      maxFunding > BigInt(0) ? (Number(currentFunding) / Number(maxFunding)) * 100 : 0;
+
+    const assets = investment.amount;
+
+    const totalReturn = investment.profitClaims.reduce(
+      (sum, claim) => sum + BigInt(claim.amount),
+      BigInt(0),
+    );
+
+    const investmentAmount = BigInt(assets);
+    const returnRate =
+      investmentAmount > BigInt(0)
+        ? Number((totalReturn * BigInt(10000)) / investmentAmount) / 100
+        : 0;
+
+    const cumulativeAsset = (investmentAmount + totalReturn).toString();
+
+    return {
+      projectId: project.id,
+      volume: project.volume,
+      commodity: project.commodity,
+      submissionDate: project.projectSubmission?.createdAt || project.createdAt,
+      deliveryDate: project.sendDate,
+      projectPrice: project.projectSubmission?.valueProject || '0',
+      fundingPrice: project.projectSubmission?.maxCrowdFunding || '0',
+      currentFundingPrice: currentFunding.toString(),
+      returnInvestmentRate: project.profitShare,
+      projectName: project.name,
+      collectorName: project.collector.name,
+      farmerName: project.farmer.name,
+      investors: uniqueInvestors,
+      status: project.status,
+      fundingPercentage: Math.round(fundingPercentage * 100) / 100,
+      image: file?.url || null,
+      landAddress: project.land.address,
+      gradeQuality: null,
+      assets: assets,
+      returnRate: Math.round(returnRate * 100) / 100,
+      return: totalReturn.toString(),
+      cumulativeAsset: cumulativeAsset,
     };
   }
 

@@ -20,6 +20,24 @@ export class ProjectSubmissionsService {
     private readonly stomaTradeContract: StomaTradeContractService,
   ) {}
 
+  /**
+   * Extract CID from various IPFS URL formats
+   */
+  private extractCID(url: string): string {
+    if (!url) return '';
+
+    if (url.startsWith('ipfs://')) {
+      return url.replace('ipfs://', '');
+    }
+
+    const match = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+    if (match) {
+      return match[1];
+    }
+
+    return url;
+  }
+
   async create(dto: CreateProjectSubmissionDto) {
     this.logger.log(`Creating project submission for project ${dto.projectId}`);
 
@@ -65,9 +83,12 @@ export class ProjectSubmissionsService {
     });
 
     const encodedCalldata = this.stomaTradeContract.getCreateProjectCalldata(
+      dto.metadataCid || '',
       dto.valueProject,
       dto.maxCrowdFunding,
-      dto.metadataCid || '',
+      dto.totalKilos || '0',
+      dto.profitPerKillos || '0',
+      dto.sharedProfit || 0,
     );
 
     this.logger.log(`Project submission created: ${submission.id}`);
@@ -144,14 +165,27 @@ export class ProjectSubmissionsService {
         `Minting Project NFT - Value: ${submission.valueProject}, MaxCrowdFunding: ${submission.maxCrowdFunding}, CID: ${submission.metadataCid || 'none'}`,
       );
 
+      // Get project files for CID
+      const projectFiles = await this.prisma.file.findMany({
+        where: { reffId: submission.project.id },
+      });
+
+      const primaryFile = projectFiles.find(f => f.type.startsWith('image/')) || projectFiles[0];
+      const cid = primaryFile?.url ? this.extractCID(primaryFile.url) : (submission.metadataCid || '');
+
       const valueProject = BigInt(submission.valueProject);
       const maxCrowdFunding = BigInt(submission.maxCrowdFunding);
-      const cid = submission.metadataCid || '';
+      const totalKilos = BigInt(submission.project.totalKilos || '0');
+      const profitPerKillos = BigInt(submission.project.profitPerKillos || '0');
+      const sharedProfit = BigInt(submission.project.profitShare || 0);
 
       const txResult = await this.stomaTradeContract.createProject(
+        cid,
         valueProject,
         maxCrowdFunding,
-        cid,
+        totalKilos,
+        profitPerKillos,
+        sharedProfit,
       );
 
       const blockchainTx = await this.prisma.blockchainTransaction.create({

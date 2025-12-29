@@ -16,6 +16,9 @@ describe('FarmerSubmissionsService', () => {
     id: 'farmer-uuid-1',
     name: 'John Farmer',
     nik: '3201234567890123',
+    age: 45,
+    address: 'Farmer Address',
+    collectorId: 'collector-uuid-1',
   };
 
   const mockSubmission = {
@@ -187,8 +190,9 @@ describe('FarmerSubmissionsService', () => {
         ...mockFarmer,
         tokenId: 1001,
       });
+      prisma.file.findMany.mockResolvedValue([]);
 
-      contractService.mintFarmerNFT.mockResolvedValue({
+      contractService.addFarmer.mockResolvedValue({
         hash: '0xTxHash',
         receipt: { status: 1, logs: [] },
         success: true,
@@ -212,7 +216,7 @@ describe('FarmerSubmissionsService', () => {
         approvedBy: '0xAdminWallet',
       });
 
-      expect(contractService.mintFarmerNFT).toHaveBeenCalledWith('Coffee Arabica');
+      expect(contractService.addFarmer).toHaveBeenCalled();
       expect(result.status).toBe(SUBMISSION_STATUS.MINTED);
     });
 

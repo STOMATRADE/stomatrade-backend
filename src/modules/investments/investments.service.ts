@@ -17,6 +17,24 @@ export class InvestmentsService {
     private readonly stomaTradeContract: StomaTradeContractService,
   ) {}
 
+  /**
+   * Extract CID from various IPFS URL formats
+   */
+  private extractCID(url: string): string {
+    if (!url) return '';
+
+    if (url.startsWith('ipfs://')) {
+      return url.replace('ipfs://', '');
+    }
+
+    const match = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+    if (match) {
+      return match[1];
+    }
+
+    return url;
+  }
+
   async create(dto: CreateInvestmentDto) {
     this.logger.log(
       `Creating investment for user ${dto.userId} in project ${dto.projectId}`,
@@ -64,10 +82,19 @@ export class InvestmentsService {
         `Calling blockchain invest() - ProjectId: ${project.tokenId}, Amount: ${dto.amount}`,
       );
 
+      // Get investment files for CID
+      const investmentFiles = await this.prisma.file.findMany({
+        where: { reffId: investment.id },
+      });
+
+      const primaryFile = investmentFiles.find(f => f.type.startsWith('image/')) || investmentFiles[0];
+      const cid = primaryFile?.url ? this.extractCID(primaryFile.url) : '';
+
       const projectTokenId = BigInt(project.tokenId);
       const amount = BigInt(dto.amount);
 
       const txResult = await this.stomaTradeContract.invest(
+        cid,
         projectTokenId,
         amount,
       );

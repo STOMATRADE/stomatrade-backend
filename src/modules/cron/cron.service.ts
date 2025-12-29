@@ -177,7 +177,7 @@ export class CronService {
   private async syncEventsFromBlock(fromBlock: number, toBlock: number) {
     const eventTypes = [
       'ProjectCreated',
-      'FarmerMinted',
+      'FarmerAdded', // Changed from FarmerMinted in new contract
       'Invested',
       'ProfitDeposited',
       'ProfitClaimed',
@@ -210,8 +210,8 @@ export class CronService {
       case 'ProjectCreated':
         await this.handleProjectCreatedEvent(event);
         break;
-      case 'FarmerMinted':
-        await this.handleFarmerMintedEvent(event);
+      case 'FarmerAdded':
+        await this.handleFarmerAddedEvent(event);
         break;
       case 'Invested':
         await this.handleInvestedEvent(event);
@@ -249,13 +249,13 @@ export class CronService {
     });
   }
 
-  private async handleFarmerMintedEvent(event: any) {
+  private async handleFarmerAddedEvent(event: any) {
     const { args, transactionHash, blockNumber } = event;
-    
+
     const existing = await this.prisma.blockchainTransaction.findUnique({
       where: { transactionHash },
     });
-    
+
     if (existing) return;
 
     await this.prisma.blockchainTransaction.create({

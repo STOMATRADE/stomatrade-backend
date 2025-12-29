@@ -158,7 +158,7 @@ export class BlockchainEventService implements OnModuleInit {
     // Query all event types
     const eventTypes = [
       'ProjectCreated',
-      'FarmerMinted',
+      'FarmerAdded', // Changed from FarmerMinted in new contract
       'Invested',
       'ProfitDeposited',
       'ProfitClaimed',

@@ -81,20 +81,60 @@ export class StomaTradeContractService implements OnModuleInit {
     return contract.interface.encodeFunctionData(functionName, args);
   }
 
+  /**
+   * Extract CID from various IPFS URL formats
+   */
+  private extractCID(url: string): string {
+    if (!url) return '';
+
+    // ipfs://QmXxx... → QmXxx...
+    if (url.startsWith('ipfs://')) {
+      return url.replace('ipfs://', '');
+    }
+
+    // https://ipfs.io/ipfs/QmXxx... → QmXxx...
+    // https://gateway.pinata.cloud/ipfs/QmXxx... → QmXxx...
+    const match = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+    if (match) {
+      return match[1];
+    }
+
+    // If already a CID or unknown format, return as is
+    return url;
+  }
+
   getCreateProjectCalldata(
-    valueProject: string | bigint,
-    maxCrowdFunding: string | bigint,
     cid: string,
+    valueProject: string | bigint,
+    maxInvested: string | bigint,
+    totalKilos: string | bigint,
+    profitPerKillos: string | bigint,
+    sharedProfit: number | bigint,
   ): string {
     return this.encodeFunctionData('createProject', [
-      valueProject,
-      maxCrowdFunding,
       cid,
+      valueProject,
+      maxInvested,
+      totalKilos,
+      profitPerKillos,
+      sharedProfit,
     ]);
   }
 
-  getMintFarmerCalldata(namaKomoditas: string): string {
-    return this.encodeFunctionData('nftFarmer', [namaKomoditas]);
+  getMintFarmerCalldata(
+    cid: string,
+    idCollector: string,
+    name: string,
+    age: number | bigint,
+    domicile: string,
+  ): string {
+    return this.encodeFunctionData('addFarmer', [
+      cid,
+      idCollector,
+      name,
+      age,
+      domicile,
+    ]);
   }
 
   /**
@@ -114,29 +154,38 @@ export class StomaTradeContractService implements OnModuleInit {
    * Create a new project on the blockchain
    */
   async createProject(
-    valueProject: bigint,
-    maxCrowdFunding: bigint,
     cid: string,
+    valueProject: bigint,
+    maxInvested: bigint,
+    totalKilos: bigint,
+    profitPerKillos: bigint,
+    sharedProfit: bigint,
   ): Promise<TransactionResult> {
     this.logger.log('Creating project on blockchain');
 
     return await this.transactionService.executeContractMethod(
       this.contract,
       'createProject',
-      [valueProject, maxCrowdFunding, cid],
+      [cid, valueProject, maxInvested, totalKilos, profitPerKillos, sharedProfit],
     );
   }
 
   /**
-   * Mint Farmer NFT (called by platform after approval)
+   * Add Farmer NFT (called by platform after approval)
    */
-  async mintFarmerNFT(namaKomoditas: string): Promise<TransactionResult> {
-    this.logger.log(`Minting Farmer NFT for commodity: ${namaKomoditas}`);
+  async addFarmer(
+    cid: string,
+    idCollector: string,
+    name: string,
+    age: bigint,
+    domicile: string,
+  ): Promise<TransactionResult> {
+    this.logger.log(`Adding Farmer NFT: ${name}`);
 
     return await this.transactionService.executeContractMethod(
       this.contract,
-      'nftFarmer',
-      [namaKomoditas],
+      'addFarmer',
+      [cid, idCollector, name, age, domicile],
     );
   }
 
@@ -145,6 +194,7 @@ export class StomaTradeContractService implements OnModuleInit {
    * Note: This should be called by the investor's wallet, not the platform wallet
    */
   async invest(
+    cid: string,
     projectId: bigint,
     amount: bigint,
   ): Promise<TransactionResult> {
@@ -153,7 +203,7 @@ export class StomaTradeContractService implements OnModuleInit {
     return await this.transactionService.executeContractMethod(
       this.contract,
       'invest',
-      [projectId, amount],
+      [cid, projectId, amount],
     );
   }
 
