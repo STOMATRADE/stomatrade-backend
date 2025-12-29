@@ -20,11 +20,30 @@ export class FarmerSubmissionsService {
     private readonly stomaTradeContract: StomaTradeContractService,
   ) {}
 
+  /**
+   * Extract CID from various IPFS URL formats
+   */
+  private extractCID(url: string): string {
+    if (!url) return '';
+
+    if (url.startsWith('ipfs://')) {
+      return url.replace('ipfs://', '');
+    }
+
+    const match = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+    if (match) {
+      return match[1];
+    }
+
+    return url;
+  }
+
   async create(dto: CreateFarmerSubmissionDto) {
     this.logger.log(`Creating farmer submission for farmer ${dto.farmerId}`);
 
     const farmer = await this.prisma.farmer.findUnique({
       where: { id: dto.farmerId },
+      include: { collector: true },
     });
 
     if (!farmer) {
@@ -54,7 +73,11 @@ export class FarmerSubmissionsService {
     });
 
     const encodedCalldata = this.stomaTradeContract.getMintFarmerCalldata(
-      dto.commodity,
+      '', // CID - will be provided later
+      farmer.collectorId,
+      farmer.name,
+      farmer.age,
+      farmer.address,
     );
 
     this.logger.log(`Farmer submission created: ${submission.id}`);
@@ -118,11 +141,23 @@ export class FarmerSubmissionsService {
 
     try {
       this.logger.log(
-        `Minting Farmer NFT for commodity: ${submission.commodity}`,
+        `Minting Farmer NFT for: ${submission.farmer.name}`,
       );
 
-      const txResult = await this.stomaTradeContract.mintFarmerNFT(
-        submission.commodity,
+      // Get farmer files for CID
+      const farmerFiles = await this.prisma.file.findMany({
+        where: { reffId: submission.farmerId },
+      });
+
+      const primaryFile = farmerFiles.find(f => f.type.startsWith('image/')) || farmerFiles[0];
+      const cid = primaryFile?.url ? this.extractCID(primaryFile.url) : '';
+
+      const txResult = await this.stomaTradeContract.addFarmer(
+        cid,
+        submission.farmer.collectorId,
+        submission.farmer.name,
+        BigInt(submission.farmer.age),
+        submission.farmer.address,
       );
 
       const blockchainTx = await this.prisma.blockchainTransaction.create({
@@ -139,22 +174,22 @@ export class FarmerSubmissionsService {
 
       let mintedTokenId: number | null = null;
       if (txResult.receipt) {
-        const farmerMintedEvent = this.stomaTradeContract.getEventFromReceipt(
+        const farmerAddedEvent = this.stomaTradeContract.getEventFromReceipt(
           txResult.receipt,
-          'FarmerMinted',
+          'FarmerAdded',
         );
 
-        if (farmerMintedEvent) {
+        if (farmerAddedEvent) {
           const parsed = this.stomaTradeContract
             .getContract()
             .interface.parseLog({
-              topics: farmerMintedEvent.topics,
-              data: farmerMintedEvent.data,
+              topics: farmerAddedEvent.topics,
+              data: farmerAddedEvent.data,
             });
 
           if (parsed) {
             mintedTokenId = Number(parsed.args.nftId);
-            this.logger.log(`Farmer NFT minted with token ID: ${mintedTokenId}`);
+            this.logger.log(`Farmer NFT added with token ID: ${mintedTokenId}`);
           }
         }
       }

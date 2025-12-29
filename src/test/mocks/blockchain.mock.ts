@@ -35,6 +35,7 @@ export const mockStomaTradeContractService = {
   getMintFarmerCalldata: jest.fn().mockReturnValue('0xencodeddata'),
   createProject: jest.fn().mockResolvedValue(mockTransactionResult),
   mintFarmerNFT: jest.fn().mockResolvedValue(mockTransactionResult),
+  addFarmer: jest.fn().mockResolvedValue(mockTransactionResult),
   invest: jest.fn().mockResolvedValue(mockTransactionResult),
   depositProfit: jest.fn().mockResolvedValue(mockTransactionResult),
   claimProfit: jest.fn().mockResolvedValue(mockTransactionResult),

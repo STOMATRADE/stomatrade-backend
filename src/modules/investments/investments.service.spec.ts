@@ -80,6 +80,7 @@ describe('InvestmentsService', () => {
       prisma.investment.update.mockResolvedValue(mockInvestment);
       prisma.investmentPortfolio.upsert.mockResolvedValue({});
       prisma.investment.findMany.mockResolvedValue([]);
+      prisma.file.findMany.mockResolvedValue([]);
 
       contractService.invest.mockResolvedValue({
         hash: '0xTxHash',

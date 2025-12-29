@@ -1698,5 +1698,385 @@ http://localhost:3000/api
 
 ---
 
-*Last Updated: November 2025*
+---
+
+### Version 1.6.0 - Mantle Migration & Smart Contract Upgrade (December 2025)
+
+#### 🔄 Major Smart Contract Migration
+
+Migrated from Lisk Sepolia Testnet to **Mantle Sepolia Testnet** with completely new smart contract architecture.
+
+**Old Contract (Lisk):**
+- Address: (Previous Lisk address)
+- Chain ID: 4202
+- RPC: https://rpc.sepolia-api.lisk.com
+
+**New Contract (Mantle):**
+- Address: `0x08A2cefa99A8848cD3aC34620f49F115587dcE28`
+- Chain ID: 5001
+- RPC: https://rpc.sepolia.mantle.xyz
+
+#### 📋 Breaking Changes - Smart Contract Functions
+
+**1. Project Creation** - Changed from 3 params to 6 params
+```typescript
+// OLD (Lisk)
+createProject(valueProject, maxCrowdFunding, cid)
+
+// NEW (Mantle)
+createProject(cid, valueProject, maxInvested, totalKilos, profitPerKillos, sharedProfit)
+```
+
+**2. Farmer NFT Minting** - Replaced `mintFarmerNFT` with `addFarmer`
+```typescript
+// OLD (Lisk)
+mintFarmerNFT(namaKomoditas)
+
+// NEW (Mantle)
+addFarmer(cid, idCollector, name, age, domicile)
+```
+
+**3. Investment** - Added CID parameter
+```typescript
+// OLD (Lisk)
+invest(projectId, amount)
+
+// NEW (Mantle)
+invest(cid, projectId, amount)
+```
+
+#### 📊 Database Schema Changes
+
+**Updated Project Model:**
+```prisma
+model Project {
+  // ... existing fields
+  profitShare       Int?
+  totalKilos        Float?      // NEW - Total kilograms of commodity
+  profitPerKillos   Float?      // NEW - Profit per kilogram
+  sendDate          DateTime
+  status            PROJECT_STATUS
+  // ... rest
+}
+```
+
+**Migration Created:**
+- `20251229150440_add_project_new_fields/migration.sql`
+- Adds `totalKilos` and `profitPerKillos` columns to projects table
+
+#### 🔧 Files Modified
+
+**1. Environment Configuration**
+- `.env`
+  ```bash
+  # Changed from:
+  BLOCKCHAIN_RPC_URL=https://rpc.sepolia-api.lisk.com
+  BLOCKCHAIN_CHAIN_ID=4202
+
+  # To:
+  BLOCKCHAIN_RPC_URL=https://rpc.sepolia.mantle.xyz
+  BLOCKCHAIN_CHAIN_ID=5001
+  ```
+
+**2. Smart Contract ABI**
+- Created: `src/blockchain/abi/StomaTradeNew.json`
+  - Full ERC721 implementation
+  - New function signatures
+  - Additional 33 functions
+  - Removed 9 old functions
+  - 2 function signatures changed
+
+**3. Contract Service** - `src/blockchain/services/stomatrade-contract.service.ts`
+
+Added CID extraction helper:
+```typescript
+private extractCID(url: string): string {
+  if (!url) return '';
+  if (url.startsWith('ipfs://')) {
+    return url.replace('ipfs://', '');
+  }
+  const match = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+  return match ? match[1] : url;
+}
+```
+
+Updated function signatures:
+```typescript
+// Project creation with 6 parameters
+getCreateProjectCalldata(
+  cid: string,
+  valueProject: string | bigint,
+  maxInvested: string | bigint,
+  totalKilos: string | bigint,
+  profitPerKillos: string | bigint,
+  sharedProfit: number | bigint,
+): string
+
+// Farmer minting with full data
+getMintFarmerCalldata(
+  cid: string,
+  idCollector: string,
+  name: string,
+  age: number | bigint,
+  domicile: string,
+): string
+
+// Investment with CID
+async invest(
+  cid: string,
+  projectId: bigint,
+  amount: bigint,
+): Promise<TransactionResult>
+```
+
+**4. Project Submissions Module**
+
+Updated DTO (`dto/create-project-submission.dto.ts`):
+```typescript
+// Added optional fields for backward compatibility
+totalKilos?: string;
+profitPerKillos?: string;
+sharedProfit?: number;
+```
+
+Service (`project-submissions.service.ts`):
+- Added CID extraction from files table
+- Updated contract call with 6 parameters
+- Uses project values: `project.totalKilos`, `project.profitPerKillos`, `project.profitShare`
+
+**5. Farmer Submissions Module** - `farmer-submissions.service.ts`
+
+Changes:
+- Added CID extraction helper
+- Removed duplicate farmer query
+- Updated to use `addFarmer()` with full farmer data
+- Fixed collector reference to use `collectorId` directly
+
+**6. Investments Module** - `investments.service.ts`
+
+Changes:
+- Added CID extraction from files table
+- Updated `invest()` call to include CID parameter
+- CID extracted from investment files using `reffId`
+
+**7. Portfolios Module** - `portfolios.service.ts`
+
+Enhanced `/portfolios/user/:userId` response with new fields:
+```typescript
+return {
+  ...portfolio,
+  investments: investments.map((inv) => ({
+    // ... existing fields
+    fundingPrice: string,     // NEW - Price per unit (amount / totalKilos)
+    totalFunding: string,     // NEW - Total project funding (volume * 1e18)
+    margin: number,           // NEW - Profit margin percentage (profit / investment * 100)
+  })),
+};
+```
+
+**8. Database Scripts**
+
+Created:
+- `prisma/update-contract-to-mantle.ts` - Updates app_projects table with Mantle config
+
+Updated:
+- `prisma/seed.ts` - Added `totalKilos` and `profitPerKillos` values to all projects
+
+#### 🗄️ Files Table Strategy
+
+**IPFS CID Storage:**
+- CIDs are stored in the `files` table
+- Field `reffId` acts as polymorphic reference to any entity
+- CID extraction supports multiple formats:
+  - `ipfs://QmXXX...`
+  - `https://ipfs.io/ipfs/QmXXX...`
+  - `https://gateway.pinata.cloud/ipfs/QmXXX...`
+
+**Usage Pattern:**
+```typescript
+// Get files for an entity
+const files = await prisma.file.findMany({
+  where: { reffId: entityId },
+});
+
+// Extract CID from primary image
+const primaryFile = files.find(f => f.type.startsWith('image/')) || files[0];
+const cid = primaryFile?.url ? this.extractCID(primaryFile.url) : '';
+```
+
+#### ✅ Build & Deployment
+
+**Build Status:**
+```bash
+npm run build  # ✅ SUCCESS - No TypeScript errors
+```
+
+**Database Seeded:**
+```
+✅ Projects created with new fields (totalKilos, profitPerKillos)
+✅ Contract configuration updated in app_projects table
+✅ All test data ready
+```
+
+#### 🔍 Testing Notes
+
+**Contract Configuration Verification:**
+```typescript
+// Database: app_projects table
+{
+  name: 'StomaTrade',
+  chainId: 'eip155:5001',
+  contractAddress: '0x08A2cefa99A8848cD3aC34620f49F115587dcE28',
+  abi: [/* Mantle ABI */]
+}
+```
+
+**API Endpoints Enhanced:**
+- `GET /portfolios/user/:userId` - Now includes `fundingPrice`, `totalFunding`, `margin`
+- All submission endpoints use new contract functions
+- CID handling integrated across farmer, project, and investment flows
+
+#### 📊 Summary of Changes
+
+| Category | Count | Details |
+|----------|-------|---------|
+| Environment Variables | 2 | RPC_URL, CHAIN_ID updated to Mantle |
+| Database Columns Added | 2 | totalKilos, profitPerKillos in projects |
+| Contract Functions Updated | 3 | createProject, addFarmer, invest |
+| Services Modified | 5 | Contract, Project Submissions, Farmer Submissions, Investments, Portfolios |
+| DTOs Updated | 1 | CreateProjectSubmissionDto (backward compatible) |
+| New Scripts | 1 | update-contract-to-mantle.ts |
+| API Response Fields Added | 3 | fundingPrice, totalFunding, margin |
+
+#### ⚠️ Migration Checklist
+
+- [x] Update `.env` with Mantle RPC and Chain ID
+- [x] Deploy new ABI file (StomaTradeNew.json)
+- [x] Run database migration for new fields
+- [x] Update contract service with new function signatures
+- [x] Add CID extraction helpers to all submission services
+- [x] Update project submission DTO with new optional fields
+- [x] Enhance portfolio response with calculated fields
+- [x] Run seed data to populate new fields
+- [x] Update app_projects table with Mantle configuration
+- [x] Build and verify no TypeScript errors
+- [x] Update APP_NOTES.md documentation
+
+#### 🚀 Deployment Notes
+
+**When deploying the same contract to Lisk:**
+1. Deploy contract to Lisk with same ABI
+2. Update `.env` with Lisk RPC and address
+3. No code changes needed (backward compatible)
+4. Update `app_projects` table with Lisk config
+
+**Multi-Chain Strategy:**
+- Same contract deployed to multiple networks
+- Network selection via environment variables
+- Backward compatible DTOs (optional new fields)
+
+---
+
+### Version 1.6.1 - Bug Fixes & Test Improvements (December 2025)
+
+#### 🐛 Bugs Fixed
+
+**1. CronService Event Name Error**
+- **Issue**: `TypeError: contract.filters[eventName] is not a function`
+- **Root Cause**: Event name changed from `FarmerMinted` to `FarmerAdded` in new Mantle contract
+- **Files Fixed**:
+  - [src/blockchain/services/blockchain-event.service.ts](src/blockchain/services/blockchain-event.service.ts:161) - Updated event name in syncEventsFromBlock
+  - [src/modules/cron/cron.service.ts](src/modules/cron/cron.service.ts:180) - Updated event name in eventTypes array
+  - [src/modules/cron/cron.service.ts](src/modules/cron/cron.service.ts:213) - Updated switch case to use FarmerAdded
+  - [src/modules/cron/cron.service.ts](src/modules/cron/cron.service.ts:252) - Renamed method to handleFarmerAddedEvent
+  - [src/modules/farmer-submissions/farmer-submissions.service.ts](src/modules/farmer-submissions/farmer-submissions.service.ts:177) - Updated event name in getEventFromReceipt call
+
+**2. Test Failures**
+- **Issue**: 4 test suites failing due to missing mocks
+- **Fixes**:
+
+  **a. Missing file.findMany Mock**
+  - Added `prisma.file.findMany.mockResolvedValue([])` to:
+    - [farmer-submissions.service.spec.ts](src/modules/farmer-submissions/farmer-submissions.service.spec.ts:190)
+    - [project-submissions.service.spec.ts](src/modules/project-submissions/project-submissions.service.spec.ts:173)
+    - [investments.service.spec.ts](src/modules/investments/investments.service.spec.ts:83)
+
+  **b. Missing nonce Model in Mock**
+  - Added nonce model to [prisma.mock.ts](src/test/mocks/prisma.mock.ts:169)
+  - Added nonce model to [auth.service.spec.ts](src/modules/auth/auth.service.spec.ts:40) local mock
+
+  **c. Missing Farmer Properties**
+  - Added missing properties to mockFarmer in [farmer-submissions.service.spec.ts](src/modules/farmer-submissions/farmer-submissions.service.spec.ts:15):
+    - age: 45
+    - address: 'Farmer Address'
+    - collectorId: 'collector-uuid-1'
+
+  **d. Missing addFarmer Method**
+  - Added `addFarmer` mock method to [blockchain.mock.ts](src/test/mocks/blockchain.mock.ts:38)
+  - Updated test assertions to use `addFarmer` instead of `mintFarmerNFT`
+
+#### ✅ Test Results
+
+```
+Test Suites: 17 passed, 17 total
+Tests:       158 passed, 158 total
+Snapshots:   0 total
+Time:        ~7s
+```
+
+**All tests passing** ✅
+
+#### 📊 Comprehensive Investor Data Created
+
+**Wallet Address**: `0xb2A21320debA5acC643ed1aB3132D8b549F0bef1`
+
+**Data Created**:
+- ✅ User with INVESTOR role
+- ✅ 3 investments across different projects:
+  - Coffee Project: 200,000 IDRX
+  - Rice Project: 150,000 IDRX
+  - Corn Project: 100,000 IDRX
+- ✅ Investment Portfolio:
+  - Total Invested: 450,000 IDRX
+  - Total Profit: 128,250 IDRX (28.5% ROI)
+  - Total Claimed: 76,950 IDRX
+  - Active Investments: 3
+- ✅ Multiple profit claims across all investments
+- ✅ Profit pools for all invested projects
+- ✅ Profile files (images, documents)
+
+**Script Created**: [prisma/seed-investor-comprehensive.ts](prisma/seed-investor-comprehensive.ts)
+
+**Run Command**:
+```bash
+npx ts-node prisma/seed-investor-comprehensive.ts
+```
+
+#### 📝 Files Modified
+
+| File | Changes |
+|------|---------|
+| `blockchain-event.service.ts` | Updated event name: FarmerMinted → FarmerAdded |
+| `cron.service.ts` | Updated event name and handler method |
+| `farmer-submissions.service.ts` | Updated event name in receipt parsing |
+| `farmer-submissions.service.spec.ts` | Added file mock, farmer properties, updated method name |
+| `project-submissions.service.spec.ts` | Added file mock |
+| `investments.service.spec.ts` | Added file mock |
+| `prisma.mock.ts` | Added nonce model |
+| `auth.service.spec.ts` | Added nonce model to local mock |
+| `blockchain.mock.ts` | Added addFarmer mock method |
+
+#### 🔧 Summary
+
+| Category | Count |
+|----------|-------|
+| Bugs Fixed | 2 major issues |
+| Test Suites Fixed | 4 → 17 passing |
+| Tests Fixed | 4 failed → 158 passing |
+| Files Modified | 9 |
+| New Scripts Created | 1 (comprehensive investor seed) |
+
+---
+
+*Last Updated: December 2025*
 
