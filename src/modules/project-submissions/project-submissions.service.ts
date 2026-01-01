@@ -10,6 +10,7 @@ import { SUBMISSION_STATUS } from '@prisma/client';
 import { CreateProjectSubmissionDto } from './dto/create-project-submission.dto';
 import { ApproveProjectSubmissionDto } from './dto/approve-project-submission.dto';
 import { RejectProjectSubmissionDto } from './dto/reject-project-submission.dto';
+import { toWei } from '../../common/utils/wei-converter.util';
 
 @Injectable()
 export class ProjectSubmissionsService {
@@ -173,10 +174,11 @@ export class ProjectSubmissionsService {
       const primaryFile = projectFiles.find(f => f.type.startsWith('image/')) || projectFiles[0];
       const cid = primaryFile?.url ? this.extractCID(primaryFile.url) : (submission.metadataCid || '');
 
-      const valueProject = BigInt(submission.valueProject);
-      const maxCrowdFunding = BigInt(submission.maxCrowdFunding);
-      const totalKilos = BigInt(submission.project.totalKilos || '0');
-      const profitPerKillos = BigInt(submission.project.profitPerKillos || '0');
+      // Convert amount bersih ke wei untuk blockchain
+      const valueProject = toWei(submission.valueProject);
+      const maxCrowdFunding = toWei(submission.maxCrowdFunding);
+      const totalKilos = toWei(submission.project.totalKilos || '0');
+      const profitPerKillos = toWei(submission.project.profitPerKillos || '0');
       const sharedProfit = BigInt(submission.project.profitShare || 0);
 
       const txResult = await this.stomaTradeContract.createProject(
