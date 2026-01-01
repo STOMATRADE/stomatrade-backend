@@ -12,14 +12,15 @@ import { InvestmentsService } from './investments.service';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '@prisma/client';
+import { ChainId } from '../../common/decorators/chain-id.decorator';
+import { InvestmentResponseDto } from './dto/investment-response.dto';
 
 @ApiTags('Investments')
 @ApiBearerAuth('JWT-auth')
 @Controller('investments')
 export class InvestmentsController {
-  constructor(private readonly investmentsService: InvestmentsService) {}
+  constructor(private readonly investmentsService: InvestmentsService) { }
 
   @Roles(ROLES.INVESTOR)
   @Post()
@@ -31,6 +32,7 @@ export class InvestmentsController {
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Investment created and receipt NFT minted successfully',
+    type: InvestmentResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -44,8 +46,11 @@ export class InvestmentsController {
     status: HttpStatus.FORBIDDEN,
     description: 'Investor role required',
   })
-  create(@Body() dto: CreateInvestmentDto) {
-    return this.investmentsService.create(dto);
+  create(
+    @Body() dto: CreateInvestmentDto,
+    @ChainId() chainId: number
+  ) {
+    return this.investmentsService.create(dto, chainId);
   }
 
   @Roles(ROLES.ADMIN)
@@ -70,6 +75,7 @@ export class InvestmentsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Investments retrieved successfully',
+    type: [InvestmentResponseDto],
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,
@@ -128,6 +134,7 @@ export class InvestmentsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Investment retrieved successfully',
+    type: InvestmentResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,

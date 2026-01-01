@@ -18,9 +18,9 @@ export class FarmerSubmissionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stomaTradeContract: StomaTradeContractService,
-  ) {}
+  ) { }
 
-  async create(dto: CreateFarmerSubmissionDto) {
+  async create(dto: CreateFarmerSubmissionDto, chainId: number) {
     this.logger.log(`Creating farmer submission for farmer ${dto.farmerId}`);
 
     const farmer = await this.prisma.farmer.findUnique({
@@ -53,8 +53,12 @@ export class FarmerSubmissionsService {
       },
     });
 
-    const encodedCalldata = this.stomaTradeContract.getMintFarmerCalldata(
-      dto.commodity,
+    const encodedCalldata = await this.stomaTradeContract.getAddFarmerCalldata(
+      '', // cid (empty for now or from somewhere else)
+      farmer.nik, // idCollector/idFarmer (using NIK as unique ID)
+      farmer.name,
+      farmer.age,
+      farmer.address, // domicile
     );
 
     this.logger.log(`Farmer submission created: ${submission.id}`);
@@ -97,7 +101,7 @@ export class FarmerSubmissionsService {
     return submission;
   }
 
-  async approve(id: string, dto: ApproveFarmerSubmissionDto) {
+  async approve(id: string, dto: ApproveFarmerSubmissionDto, chainId: number) {
     this.logger.log(`Approving farmer submission ${id}`);
 
     const submission = await this.findOne(id);
@@ -118,17 +122,22 @@ export class FarmerSubmissionsService {
 
     try {
       this.logger.log(
-        `Minting Farmer NFT for commodity: ${submission.commodity}`,
+        `Adding Farmer to blockchain: ${submission.farmer.name}`,
       );
 
-      const txResult = await this.stomaTradeContract.mintFarmerNFT(
-        submission.commodity,
+      const txResult = await this.stomaTradeContract.addFarmer(
+        chainId,
+        '', // cid
+        submission.farmer.nik,
+        submission.farmer.name,
+        submission.farmer.age,
+        submission.farmer.address,
       );
 
       const blockchainTx = await this.prisma.blockchainTransaction.create({
         data: {
           transactionHash: txResult.hash,
-          transactionType: 'MINT_FARMER_NFT',
+          transactionType: 'MINT_FARMER_NFT', // Keep enum for now or update if needed
           status: txResult.success ? 'CONFIRMED' : 'FAILED',
           fromAddress: await this.stomaTradeContract.getSignerAddress(),
           blockNumber: txResult.blockNumber || null,
@@ -139,21 +148,21 @@ export class FarmerSubmissionsService {
 
       let mintedTokenId: number | null = null;
       if (txResult.receipt) {
-        const farmerMintedEvent = this.stomaTradeContract.getEventFromReceipt(
+        const farmerMintedEvent = await this.stomaTradeContract.getEventFromReceipt(
+          chainId,
           txResult.receipt,
-          'FarmerMinted',
+          'FarmerAdded',
         );
 
         if (farmerMintedEvent) {
-          const parsed = this.stomaTradeContract
-            .getContract()
-            .interface.parseLog({
-              topics: farmerMintedEvent.topics,
-              data: farmerMintedEvent.data,
-            });
+          const contract = await this.stomaTradeContract.getContract(chainId);
+          const parsed = contract.interface.parseLog({
+            topics: farmerMintedEvent.topics,
+            data: farmerMintedEvent.data,
+          });
 
           if (parsed) {
-            mintedTokenId = Number(parsed.args.nftId);
+            mintedTokenId = Number(parsed.args.idToken);
             this.logger.log(`Farmer NFT minted with token ID: ${mintedTokenId}`);
           }
         }

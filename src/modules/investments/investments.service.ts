@@ -15,9 +15,9 @@ export class InvestmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stomaTradeContract: StomaTradeContractService,
-  ) {}
+  ) { }
 
-  async create(dto: CreateInvestmentDto) {
+  async create(dto: CreateInvestmentDto, chainId: number) {
     this.logger.log(
       `Creating investment for user ${dto.userId} in project ${dto.projectId}`,
     );
@@ -68,24 +68,26 @@ export class InvestmentsService {
       const amount = BigInt(dto.amount);
 
       const txResult = await this.stomaTradeContract.invest(
+        chainId,
+        '', // cid
         projectTokenId,
         amount,
       );
 
       let receiptTokenId: number | null = null;
       if (txResult.receipt) {
-        const investedEvent = this.stomaTradeContract.getEventFromReceipt(
+        const investedEvent = await this.stomaTradeContract.getEventFromReceipt(
+          chainId,
           txResult.receipt,
           'Invested',
         );
 
         if (investedEvent) {
-          const parsed = this.stomaTradeContract
-            .getContract()
-            .interface.parseLog({
-              topics: investedEvent.topics,
-              data: investedEvent.data,
-            });
+          const contract = await this.stomaTradeContract.getContract(chainId);
+          const parsed = contract.interface.parseLog({
+            topics: investedEvent.topics,
+            data: investedEvent.data,
+          });
 
           if (parsed) {
             receiptTokenId = Number(parsed.args.receiptTokenId);

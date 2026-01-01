@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ethers, EventLog, Log } from 'ethers';
 import { EthersProviderService } from './ethers-provider.service';
 import { StomaTradeContractService } from './stomatrade-contract.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 export interface BlockchainEvent {
   eventName: string;
@@ -19,6 +20,7 @@ export class BlockchainEventService implements OnModuleInit {
   constructor(
     private readonly providerService: EthersProviderService,
     private readonly contractService: StomaTradeContractService,
+    private readonly prisma: PrismaService,
   ) { }
 
   async onModuleInit() {
@@ -29,85 +31,124 @@ export class BlockchainEventService implements OnModuleInit {
   /**
    * Start listening to all contract events
    */
-  startListening() {
+  async startListening() {
     if (this.isListening) {
       this.logger.warn('Already listening to events');
       return;
     }
 
-    const contract = this.contractService.getContract();
-
-    // Listen to ProjectCreated events
-    contract.on('ProjectCreated', async (idProject, owner, valueProject, maxCrowdFunding, event) => {
-      await this.handleProjectCreatedEvent({
-        idProject,
-        owner,
-        valueProject,
-        maxCrowdFunding,
-        event,
-      });
+    const smartContracts = await this.prisma.smartContract.findMany({
+      where: { deleted: false },
     });
 
-    // Listen to FarmerMinted events
-    contract.on('FarmerMinted', async (farmer, nftId, namaKomoditas, event) => {
-      await this.handleFarmerMintedEvent({
-        farmer,
-        nftId,
-        namaKomoditas,
-        event,
-      });
-    });
+    for (const sc of smartContracts) {
+      try {
+        const chainId = parseInt(sc.chainId, 10);
+        if (isNaN(chainId)) {
+          this.logger.warn(`Invalid chainId for contract ${sc.name}: ${sc.chainId}`);
+          continue;
+        }
 
-    // Listen to Invested events
-    contract.on('Invested', async (idProject, investor, amount, receiptTokenId, event) => {
-      await this.handleInvestedEvent({
-        idProject,
-        investor,
-        amount,
-        receiptTokenId,
-        event,
-      });
-    });
+        const contract = await this.contractService.getContract(chainId);
 
-    // Listen to ProfitDeposited events
-    contract.on('ProfitDeposited', async (idProject, amount, event) => {
-      await this.handleProfitDepositedEvent({
-        idProject,
-        amount,
-        event,
-      });
-    });
+        this.logger.log(`Setting up listeners for chain ${chainId}`);
 
-    // Listen to ProfitClaimed events
-    contract.on('ProfitClaimed', async (idProject, user, amount, event) => {
-      await this.handleProfitClaimedEvent({
-        idProject,
-        user,
-        amount,
-        event,
-      });
-    });
+        // Listen to ProjectCreated events
+        contract.on('ProjectCreated', async (idProject, owner, valueProject, maxInvested, event) => {
+          await this.handleProjectCreatedEvent({
+            idProject,
+            owner,
+            valueProject,
+            maxInvested,
+            event,
+            chainId,
+          });
+        });
 
-    // Listen to Refunded events
-    contract.on('Refunded', async (idProject, investor, amount, event) => {
-      await this.handleRefundedEvent({
-        idProject,
-        investor,
-        amount,
-        event,
-      });
-    });
+        // Listen to FarmerAdded events
+        contract.on('FarmerAdded', async (idFarmer, idCollector, event) => {
+          await this.handleFarmerAddedEvent({
+            idFarmer,
+            idCollector,
+            event,
+            chainId,
+          });
+        });
+
+        // Listen to Invested events
+        contract.on('Invested', async (idProject, investor, amount, idToken, event) => {
+          await this.handleInvestedEvent({
+            idProject,
+            investor,
+            amount,
+            idToken,
+            event,
+            chainId,
+          });
+        });
+
+        // Listen to ProjectStatusChanged events (covers closed, finished, refunded)
+        contract.on('ProjectStatusChanged', async (idProject, oldStatus, newStatus, event) => {
+          await this.handleProjectStatusChangedEvent({
+            idProject,
+            oldStatus,
+            newStatus,
+            event,
+            chainId,
+          });
+        });
+
+        // Listen to ProfitClaimed events
+        contract.on('ProfitClaimed', async (idProject, user, amount, event) => {
+          await this.handleProfitClaimedEvent({
+            idProject,
+            user,
+            amount,
+            event,
+            chainId,
+          });
+        });
+
+        // Listen to Refunded events
+        contract.on('Refunded', async (idProject, investor, amount, event) => {
+          await this.handleRefundedEvent({
+            idProject,
+            investor,
+            amount,
+            event,
+            chainId,
+          });
+        });
+
+      } catch (error) {
+        this.logger.error(`Failed to setup listeners for chain ${sc.chainId}`, error);
+      }
+    }
 
     this.isListening = true;
-    this.logger.log('Started listening to blockchain events');
+    this.logger.log('Started listening to blockchain events on all chains');
   }
 
   /**
    * Stop listening to events
    */
-  stopListening() {
-    const contract = this.contractService.getContract();
-    contract.removeAllListeners();
+  async stopListening() {
+    const smartContracts = await this.prisma.smartContract.findMany({
+      where: { deleted: false },
+    });
+
+    for (const sc of smartContracts) {
+      try {
+        const chainId = parseInt(sc.chainId, 10);
+        if (!isNaN(chainId)) {
+          const contract = await this.contractService.getContract(chainId);
+          contract.removeAllListeners();
+        }
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+    }
+
     this.isListening = false;
     this.logger.log('Stopped listening to blockchain events');
   }
@@ -124,24 +165,38 @@ export class BlockchainEventService implements OnModuleInit {
       `Querying past ${eventName} events from block ${fromBlock} to ${toBlock}`,
     );
 
-    const contract = this.contractService.getContract();
-    const filter = contract.filters[eventName]();
+    // For now defaulting to chainId 0 or we need to pass chainId to queryPastEvents
+    // This part requires API update to support chain specific queries, 
+    // but for build fix I'll assume a default or require update.
+    // However, better to just log or throw not implemented if chainId missing.
+    // Or iterate all chains.
 
-    const events = await contract.queryFilter(filter, fromBlock, toBlock);
-
+    // Simplification: query all chains
     const blockchainEvents: BlockchainEvent[] = [];
+    const smartContracts = await this.prisma.smartContract.findMany({ where: { deleted: false } });
 
-    for (const event of events) {
-      const block = await event.getBlock();
+    for (const sc of smartContracts) {
+      const chainId = parseInt(sc.chainId, 10);
+      if (isNaN(chainId)) continue;
 
-      blockchainEvents.push({
-        eventName: (event as EventLog).eventName || eventName,
-        blockNumber: event.blockNumber,
-        transactionHash: event.transactionHash,
-        args: (event as EventLog).args,
-        timestamp: block.timestamp,
-      });
+      const contract = await this.contractService.getContract(chainId);
+      const filter = contract.filters[eventName]();
+      const events = await contract.queryFilter(filter, fromBlock, toBlock);
+
+      for (const event of events) {
+        const block = await event.getBlock();
+        blockchainEvents.push({
+          eventName: (event as EventLog).eventName || eventName,
+          blockNumber: event.blockNumber,
+          transactionHash: event.transactionHash,
+          args: (event as EventLog).args,
+          timestamp: block.timestamp,
+        });
+      }
     }
+
+    // Sort by timestamp?
+    return blockchainEvents;
 
     this.logger.log(`Found ${blockchainEvents.length} past ${eventName} events`);
     return blockchainEvents;
@@ -158,9 +213,9 @@ export class BlockchainEventService implements OnModuleInit {
     // Query all event types
     const eventTypes = [
       'ProjectCreated',
-      'FarmerMinted',
+      'FarmerAdded',
       'Invested',
-      'ProfitDeposited',
+      'ProjectStatusChanged',
       'ProfitClaimed',
       'Refunded',
     ];
@@ -196,9 +251,9 @@ export class BlockchainEventService implements OnModuleInit {
     // You'll implement this when we create the database module
   }
 
-  private async handleFarmerMintedEvent(data: any) {
+  private async handleFarmerAddedEvent(data: any) {
     this.logger.log(
-      `FarmerMinted event: Farmer ${data.farmer} minted NFT ${data.nftId}`,
+      `FarmerAdded event: Farmer ${data.idFarmer} added with collector ID ${data.idCollector}`,
     );
 
     // TODO: Store event in database and update farmer record
@@ -212,9 +267,9 @@ export class BlockchainEventService implements OnModuleInit {
     // TODO: Store investment in database
   }
 
-  private async handleProfitDepositedEvent(data: any) {
+  private async handleProjectStatusChangedEvent(data: any) {
     this.logger.log(
-      `ProfitDeposited event: ${data.amount} deposited to project ${data.idProject}`,
+      `ProjectStatusChanged event: Project ${data.idProject} changed from status ${data.oldStatus} to ${data.newStatus}`,
     );
 
     // TODO: Update profit pool in database

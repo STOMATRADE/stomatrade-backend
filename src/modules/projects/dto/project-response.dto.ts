@@ -1,39 +1,47 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { FarmerResponseDto } from '../../farmers/dto/farmer-response.dto';
+import { LandResponseDto } from '../../lands/dto/land-response.dto';
+import { ProjectSubmissionResponseDto } from '../../project-submissions/dto/project-submission-response.dto';
+
 export class ProjectResponseDto {
-  @ApiProperty({example: 'cc0e8400-e29b-41d4-a716-446655440007',})
+  @ApiProperty({ example: 'cc0e8400-e29b-41d4-a716-446655440007', })
   id: string;
 
-  @ApiProperty({example: 3001,
-    nullable: true,})
+  @ApiProperty({
+    example: 3001,
+    nullable: true,
+  })
   tokenId: number | null;
 
-  @ApiProperty({example: '550e8400-e29b-41d4-a716-446655440000',})
+  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000', })
   collectorId: string;
 
-  @ApiProperty({example: '770e8400-e29b-41d4-a716-446655440002',})
+  @ApiProperty({ example: '770e8400-e29b-41d4-a716-446655440002', })
   farmerId: string;
 
-  @ApiProperty({example: '880e8400-e29b-41d4-a716-446655440003',})
+  @ApiProperty({ example: '880e8400-e29b-41d4-a716-446655440003', })
   landId: string;
 
-  @ApiProperty({example: 'Coffee Arabica Q1 Harvest',})
+  @ApiProperty({ example: 'Coffee Arabica Q1 Harvest', })
   name: string;
 
-  @ApiProperty({example: 'Rice',})
+  @ApiProperty({ example: 'Rice', })
   commodity: string;
 
-  @ApiProperty({example: 1000.5,})
+  @ApiProperty({ example: 1000.5, })
   volume: number;
 
-  @ApiProperty({example: 18,})
+  @ApiProperty({ example: 18, })
   volumeDecimal: number;
 
-  @ApiProperty({example: 20,
-    nullable: true,})
+  @ApiProperty({
+    example: 20,
+    nullable: true,
+  })
   profitShare: number | null;
 
-  @ApiProperty({example: '2025-02-15T08:00:00.000Z',})
+  @ApiProperty({ example: '2025-02-15T08:00:00.000Z', })
   sendDate: Date;
 
   @ApiProperty()
@@ -42,21 +50,21 @@ export class ProjectResponseDto {
   @ApiProperty()
   updatedAt: Date;
 
-  @ApiProperty({example: false,})
+  @ApiProperty({ example: false, })
   deleted: boolean;
 }
 
 export class ProjectWithRelationsDto extends ProjectResponseDto {
-  @ApiProperty()
-  farmer?: any;
+  @ApiProperty({ type: () => FarmerResponseDto })
+  farmer?: FarmerResponseDto;
 
-  @ApiProperty()
-  land?: any;
+  @ApiProperty({ type: () => LandResponseDto })
+  land?: LandResponseDto;
 
-  @ApiProperty()
-  projectSubmission?: any;
+  @ApiProperty({ type: () => ProjectSubmissionResponseDto })
+  projectSubmission?: ProjectSubmissionResponseDto;
 
-  @ApiProperty({type: 'array',})
+  @ApiProperty({ type: 'array', })
   investments?: any[];
 
   @ApiProperty()
@@ -64,7 +72,7 @@ export class ProjectWithRelationsDto extends ProjectResponseDto {
 }
 
 export class PaginatedProjectResponseDto {
-  @ApiProperty({type: [ProjectResponseDto],})
+  @ApiProperty({ type: [ProjectResponseDto], })
   items: ProjectResponseDto[];
 
   @ApiProperty()

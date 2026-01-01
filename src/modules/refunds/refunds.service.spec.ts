@@ -84,9 +84,9 @@ describe('RefundsService', () => {
       contractService.getContractAddress.mockReturnValue('0xContractAddress');
       contractService.getSignerAddress.mockReturnValue('0xPlatformAddress');
 
-      const result = await service.markRefundable(dto);
+      const result = await service.markRefundable(dto, 4202);
 
-      expect(contractService.markRefundable).toHaveBeenCalled();
+      expect(contractService.refundProject).toHaveBeenCalled();
       expect(result.status).toBe('REFUNDABLE');
       expect(result.reason).toBe('Crowdfunding failed');
     });
@@ -98,7 +98,7 @@ describe('RefundsService', () => {
         service.markRefundable({
           projectId: 'non-existent',
           reason: 'Test',
-        }),
+        }, 4202),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -109,7 +109,7 @@ describe('RefundsService', () => {
         service.markRefundable({
           projectId: 'project-uuid-1',
           reason: 'Test',
-        }),
+        }, 4202),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -153,7 +153,7 @@ describe('RefundsService', () => {
       });
       contractService.getSignerAddress.mockReturnValue('0xPlatformAddress');
 
-      const result = await service.claimRefund(dto);
+      const result = await service.claimRefund(dto, 4202);
 
       expect(contractService.claimRefund).toHaveBeenCalled();
       expect(result).toHaveProperty('investmentId');
@@ -167,7 +167,7 @@ describe('RefundsService', () => {
         service.claimRefund({
           userId: 'non-existent',
           projectId: 'project-uuid-1',
-        }),
+        }, 4202),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -179,7 +179,7 @@ describe('RefundsService', () => {
         service.claimRefund({
           userId: 'user-uuid-1',
           projectId: 'non-existent',
-        }),
+        }, 4202),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -192,7 +192,7 @@ describe('RefundsService', () => {
         service.claimRefund({
           userId: 'user-uuid-1',
           projectId: 'project-uuid-1',
-        }),
+        }, 4202),
       ).rejects.toThrow(BadRequestException);
     });
   });

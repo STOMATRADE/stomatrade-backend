@@ -8,7 +8,7 @@ export class EthersProviderService implements OnModuleInit {
   private provider: ethers.JsonRpcProvider;
   private chainId: number;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   async onModuleInit() {
     const rpcUrl = this.configService.get<string>('BLOCKCHAIN_RPC_URL');
@@ -43,6 +43,13 @@ export class EthersProviderService implements OnModuleInit {
       throw new Error('Provider not initialized');
     }
     return this.provider;
+  }
+
+  createProviderFromUrl(rpcUrl: string, chainId?: number): ethers.JsonRpcProvider {
+    const network = chainId ? new ethers.Network('custom', chainId) : undefined;
+    return new ethers.JsonRpcProvider(rpcUrl, network, {
+      staticNetwork: network,
+    });
   }
 
   getChainId(): number {

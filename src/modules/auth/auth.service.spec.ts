@@ -37,6 +37,10 @@ describeOrSkip('AuthService', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
     },
+    nonce: {
+      create: jest.fn(),
+      deleteMany: jest.fn(),
+    },
   };
 
   const mockJwtService = {

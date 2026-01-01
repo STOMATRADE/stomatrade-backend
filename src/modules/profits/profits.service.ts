@@ -16,9 +16,9 @@ export class ProfitsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stomaTradeContract: StomaTradeContractService,
-  ) {}
+  ) { }
 
-  async depositProfit(dto: DepositProfitDto) {
+  async depositProfit(dto: DepositProfitDto, chainId: number) {
     this.logger.log(`Depositing profit for project ${dto.projectId}`);
 
     const project = await this.prisma.project.findUnique({
@@ -36,7 +36,7 @@ export class ProfitsService {
     }
 
     try {
-      
+
       const projectTokenId = BigInt(project.tokenId);
       const amount = BigInt(dto.amount);
 
@@ -44,9 +44,9 @@ export class ProfitsService {
         `Calling blockchain depositProfit() - ProjectId: ${projectTokenId}, Amount: ${amount}`,
       );
 
-      const txResult = await this.stomaTradeContract.depositProfit(
+      const txResult = await this.stomaTradeContract.finishProject(
+        chainId,
         projectTokenId,
-        amount,
       );
 
       let profitPool = await this.prisma.profitPool.findUnique({
@@ -63,7 +63,7 @@ export class ProfitsService {
           },
         });
       } else {
-        
+
         const newTotalDeposited =
           BigInt(profitPool.totalDeposited) + BigInt(dto.amount);
         const newRemainingProfit =
@@ -97,7 +97,7 @@ export class ProfitsService {
     }
   }
 
-  async claimProfit(dto: ClaimProfitDto) {
+  async claimProfit(dto: ClaimProfitDto, chainId: number) {
     this.logger.log(
       `User ${dto.userId} claiming profit from project ${dto.projectId}`,
     );
@@ -139,30 +139,30 @@ export class ProfitsService {
     }
 
     try {
-      
+
       const projectTokenId = BigInt(project.tokenId);
 
       this.logger.log(
         `Calling blockchain claimProfit() - ProjectId: ${projectTokenId}`,
       );
 
-      const txResult = await this.stomaTradeContract.claimProfit(projectTokenId);
+      const txResult = await this.stomaTradeContract.claimWithdraw(chainId, projectTokenId);
 
       let claimedAmount = '0';
       if (txResult.receipt) {
         const profitClaimedEvent =
-          this.stomaTradeContract.getEventFromReceipt(
+          await this.stomaTradeContract.getEventFromReceipt(
+            chainId,
             txResult.receipt,
             'ProfitClaimed',
           );
 
         if (profitClaimedEvent) {
-          const parsed = this.stomaTradeContract
-            .getContract()
-            .interface.parseLog({
-              topics: profitClaimedEvent.topics,
-              data: profitClaimedEvent.data,
-            });
+          const contract = await this.stomaTradeContract.getContract(chainId);
+          const parsed = contract.interface.parseLog({
+            topics: profitClaimedEvent.topics,
+            data: profitClaimedEvent.data,
+          });
 
           if (parsed) {
             claimedAmount = parsed.args.amount.toString();
@@ -176,7 +176,7 @@ export class ProfitsService {
       });
 
       if (!profitPool) {
-        
+
         profitPool = await this.prisma.profitPool.create({
           data: {
             projectId: dto.projectId,
@@ -186,7 +186,7 @@ export class ProfitsService {
           },
         });
       } else {
-        
+
         const newTotalClaimed =
           BigInt(profitPool.totalClaimed) + BigInt(claimedAmount);
         const newRemainingProfit =

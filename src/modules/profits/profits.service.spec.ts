@@ -91,17 +91,17 @@ describe('ProfitsService', () => {
       prisma.project.findUnique.mockResolvedValue(mockProject);
       prisma.profitPool.findUnique.mockResolvedValue(null);
       prisma.profitPool.create.mockResolvedValue(mockProfitPool);
-      
-      contractService.depositProfit.mockResolvedValue({
+
+      contractService.finishProject.mockResolvedValue({
         hash: '0xDepositTxHash',
         receipt: { status: 1 },
         success: true,
         blockNumber: 12345678,
       });
 
-      const result = await service.depositProfit(depositDto);
+      const result = await service.depositProfit(depositDto, 4202);
 
-      expect(contractService.depositProfit).toHaveBeenCalled();
+      expect(contractService.finishProject).toHaveBeenCalled();
       expect(result).toHaveProperty('profitPool');
       expect(result).toHaveProperty('transaction');
     });
@@ -119,15 +119,15 @@ describe('ProfitsService', () => {
         totalDeposited: '150000000000000000000',
         remainingProfit: '150000000000000000000',
       });
-      
-      contractService.depositProfit.mockResolvedValue({
+
+      contractService.finishProject.mockResolvedValue({
         hash: '0xDepositTxHash',
         receipt: { status: 1 },
         success: true,
         blockNumber: 12345678,
       });
 
-      const result = await service.depositProfit(depositDto);
+      const result = await service.depositProfit(depositDto, 4202);
 
       expect(prisma.profitPool.update).toHaveBeenCalled();
       expect(result.profitPool.totalDeposited).toBe('150000000000000000000');
@@ -140,7 +140,7 @@ describe('ProfitsService', () => {
         service.depositProfit({
           projectId: 'non-existent',
           amount: '100',
-        }),
+        }, 4202),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -151,7 +151,7 @@ describe('ProfitsService', () => {
         service.depositProfit({
           projectId: 'project-uuid-1',
           amount: '100',
-        }),
+        }, 4202),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -173,8 +173,8 @@ describe('ProfitsService', () => {
         remainingProfit: '90000000000000000000',
       });
       prisma.profitClaim.create.mockResolvedValue(mockProfitClaim);
-      
-      contractService.claimProfit.mockResolvedValue({
+
+      contractService.claimWithdraw.mockResolvedValue({
         hash: '0xClaimTxHash',
         receipt: { status: 1, logs: [] },
         success: true,
@@ -193,9 +193,9 @@ describe('ProfitsService', () => {
         data: '0xdata',
       });
 
-      const result = await service.claimProfit(claimDto);
+      const result = await service.claimProfit(claimDto, 4202);
 
-      expect(contractService.claimProfit).toHaveBeenCalled();
+      expect(contractService.claimWithdraw).toHaveBeenCalled();
       expect(result).toEqual(mockProfitClaim);
     });
 
@@ -206,7 +206,7 @@ describe('ProfitsService', () => {
         service.claimProfit({
           userId: 'non-existent',
           projectId: 'project-uuid-1',
-        }),
+        }, 4202),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -219,7 +219,7 @@ describe('ProfitsService', () => {
         service.claimProfit({
           userId: 'user-uuid-1',
           projectId: 'project-uuid-1',
-        }),
+        }, 4202),
       ).rejects.toThrow(BadRequestException);
     });
   });

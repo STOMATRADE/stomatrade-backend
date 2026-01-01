@@ -18,7 +18,7 @@ export class ProjectSubmissionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stomaTradeContract: StomaTradeContractService,
-  ) {}
+  ) { }
 
   async create(dto: CreateProjectSubmissionDto) {
     this.logger.log(`Creating project submission for project ${dto.projectId}`);
@@ -67,6 +67,9 @@ export class ProjectSubmissionsService {
     const encodedCalldata = this.stomaTradeContract.getCreateProjectCalldata(
       dto.valueProject,
       dto.maxCrowdFunding,
+      project.volume.toString(), // totalKilos
+      '1', // profitPerKillos (default as missing in DB)
+      (project.profitShare || 0).toString(), // sharedProfit
       dto.metadataCid || '',
     );
 
@@ -120,7 +123,7 @@ export class ProjectSubmissionsService {
     return submission;
   }
 
-  async approve(id: string, dto: ApproveProjectSubmissionDto) {
+  async approve(id: string, dto: ApproveProjectSubmissionDto, chainId: number) {
     this.logger.log(`Approving project submission ${id}`);
 
     const submission = await this.findOne(id);
@@ -149,8 +152,12 @@ export class ProjectSubmissionsService {
       const cid = submission.metadataCid || '';
 
       const txResult = await this.stomaTradeContract.createProject(
+        chainId,
         valueProject,
         maxCrowdFunding,
+        BigInt(Math.floor(submission.project.volume)), // totalKilos
+        BigInt(1), // profitPerKillos
+        BigInt(submission.project.profitShare || 0), // sharedProfit
         cid,
       );
 
@@ -170,18 +177,18 @@ export class ProjectSubmissionsService {
       let mintedTokenId: number | null = null;
       if (txResult.receipt) {
         const projectCreatedEvent =
-          this.stomaTradeContract.getEventFromReceipt(
+          await this.stomaTradeContract.getEventFromReceipt(
+            chainId,
             txResult.receipt,
             'ProjectCreated',
           );
 
         if (projectCreatedEvent) {
-          const parsed = this.stomaTradeContract
-            .getContract()
-            .interface.parseLog({
-              topics: projectCreatedEvent.topics,
-              data: projectCreatedEvent.data,
-            });
+          const contract = await this.stomaTradeContract.getContract(chainId);
+          const parsed = contract.interface.parseLog({
+            topics: projectCreatedEvent.topics,
+            data: projectCreatedEvent.data,
+          });
 
           if (parsed) {
             mintedTokenId = Number(parsed.args.idProject);

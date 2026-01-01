@@ -16,6 +16,7 @@ import { RejectProjectSubmissionDto } from './dto/reject-project-submission.dto'
 import { ProjectSubmissionResponseDto } from './dto/project-submission-response.dto';
 import { SUBMISSION_STATUS, ROLES } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { ChainId } from '../../common/decorators/chain-id.decorator';
 
 @ApiTags('Project Submissions')
 @ApiBearerAuth('JWT-auth')
@@ -23,7 +24,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class ProjectSubmissionsController {
   constructor(
     private readonly projectSubmissionsService: ProjectSubmissionsService,
-  ) {}
+  ) { }
 
   @Roles(ROLES.STAFF, ROLES.ADMIN)
   @Post()
@@ -69,6 +70,7 @@ export class ProjectSubmissionsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Project submissions retrieved successfully',
+    type: [ProjectSubmissionResponseDto],
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,
@@ -126,8 +128,9 @@ export class ProjectSubmissionsController {
   approve(
     @Param('id') id: string,
     @Body() dto: ApproveProjectSubmissionDto,
+    @ChainId() chainId: number,
   ) {
-    return this.projectSubmissionsService.approve(id, dto);
+    return this.projectSubmissionsService.approve(id, dto, chainId);
   }
 
   @Roles(ROLES.ADMIN)
