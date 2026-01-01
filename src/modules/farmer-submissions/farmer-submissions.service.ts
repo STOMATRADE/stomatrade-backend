@@ -25,6 +25,7 @@ export class FarmerSubmissionsService {
 
     const farmer = await this.prisma.farmer.findUnique({
       where: { id: dto.farmerId },
+      include: { collector: true },
     });
 
     if (!farmer) {
@@ -151,6 +152,7 @@ export class FarmerSubmissionsService {
         const farmerMintedEvent = await this.stomaTradeContract.getEventFromReceipt(
           chainId,
           txResult.receipt,
+          'FarmerAdded',
           'FarmerAdded',
         );
 

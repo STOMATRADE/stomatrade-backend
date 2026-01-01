@@ -106,6 +106,28 @@ export class StomaTradeContractService implements OnModuleInit {
     return contract.interface.encodeFunctionData(functionName, args);
   }
 
+  /**
+   * Extract CID from various IPFS URL formats
+   */
+  private extractCID(url: string): string {
+    if (!url) return '';
+
+    // ipfs://QmXxx... → QmXxx...
+    if (url.startsWith('ipfs://')) {
+      return url.replace('ipfs://', '');
+    }
+
+    // https://ipfs.io/ipfs/QmXxx... → QmXxx...
+    // https://gateway.pinata.cloud/ipfs/QmXxx... → QmXxx...
+    const match = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+    if (match) {
+      return match[1];
+    }
+
+    // If already a CID or unknown format, return as is
+    return url;
+  }
+
   async getCreateProjectCalldata(
     valueProject: string | bigint,
     maxCrowdFunding: string | bigint,
@@ -115,6 +137,7 @@ export class StomaTradeContractService implements OnModuleInit {
     cid: string,
   ): Promise<string> {
     return this.encodeFunctionData('createProject', [
+      cid,
       cid,
       valueProject,
       maxCrowdFunding,
@@ -211,6 +234,7 @@ export class StomaTradeContractService implements OnModuleInit {
     return await this.transactionService.executeContractMethod(
       contract,
       'invest',
+      [cid, projectId, amount],
       [cid, projectId, amount],
     );
   }

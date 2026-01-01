@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { StomaTradeContractService } from '../../blockchain/services/stomatrade-contract.service';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
+import { toWei } from '../../common/utils/wei-converter.util';
 
 @Injectable()
 export class InvestmentsService {
@@ -47,6 +48,26 @@ export class InvestmentsService {
       );
     }
 
+    // Verify project exists and is valid on blockchain
+    try {
+      const projectTokenId = BigInt(project.tokenId);
+      const blockchainProject = await this.stomaTradeContract.getProject(projectTokenId);
+
+      // Check if project is ACTIVE (status 0 = ACTIVE)
+      if (blockchainProject.status !== 0) {
+        throw new BadRequestException(
+          `Project is not active on blockchain (status: ${blockchainProject.status})`,
+        );
+      }
+
+      this.logger.log(`Project ${projectTokenId} verified on blockchain - Status: ACTIVE`);
+    } catch (error) {
+      this.logger.error(`Failed to verify project on blockchain: ${error.message}`);
+      throw new BadRequestException(
+        `Invalid project on blockchain: ${error.message}`,
+      );
+    }
+
     const investment = await this.prisma.investment.create({
       data: {
         userId: dto.userId,
@@ -64,14 +85,23 @@ export class InvestmentsService {
         `Calling blockchain invest() - ProjectId: ${project.tokenId}, Amount: ${dto.amount}`,
       );
 
+      // Get investment files for CID
+      const investmentFiles = await this.prisma.file.findMany({
+        where: { reffId: investment.id },
+      });
+
+      const primaryFile = investmentFiles.find(f => f.type.startsWith('image/')) || investmentFiles[0];
+      const cid = primaryFile?.url ? this.extractCID(primaryFile.url) : '';
+
       const projectTokenId = BigInt(project.tokenId);
-      const amount = BigInt(dto.amount);
+      // Convert amount bersih ke wei untuk blockchain
+      const amountInWei = toWei(dto.amount);
 
       const txResult = await this.stomaTradeContract.invest(
         chainId,
         '', // cid
         projectTokenId,
-        amount,
+        amountInWei,
       );
 
       let receiptTokenId: number | null = null;
@@ -192,9 +222,10 @@ export class InvestmentsService {
       where: { projectId, deleted: false },
     });
 
+    // Calculate total dari amount bersih (sudah bersih di DB)
     const totalInvested = investments.reduce(
-      (sum, inv) => sum + BigInt(inv.amount),
-      BigInt(0),
+      (sum, inv) => sum + Number(inv.amount),
+      0,
     );
 
     const investorCount = new Set(investments.map((inv) => inv.userId)).size;
@@ -224,18 +255,19 @@ export class InvestmentsService {
       },
     });
 
+    // Calculate totals dari amount bersih (sudah bersih di DB)
     const totalInvested = investments.reduce(
-      (sum, inv) => sum + BigInt(inv.amount),
-      BigInt(0),
+      (sum, inv) => sum + Number(inv.amount),
+      0,
     );
 
     const totalClaimed = investments.reduce((sum, inv) => {
       const claimed = inv.profitClaims.reduce(
-        (claimSum, claim) => claimSum + BigInt(claim.amount),
-        BigInt(0),
+        (claimSum, claim) => claimSum + Number(claim.amount),
+        0,
       );
       return sum + claimed;
-    }, BigInt(0));
+    }, 0);
 
     const totalProfit = totalClaimed;
 
@@ -244,8 +276,8 @@ export class InvestmentsService {
     ).length;
 
     const avgROI =
-      totalInvested > BigInt(0)
-        ? (Number(totalProfit) / Number(totalInvested)) * 100
+      totalInvested > 0
+        ? (totalProfit / totalInvested) * 100
         : 0;
 
     await this.prisma.investmentPortfolio.upsert({

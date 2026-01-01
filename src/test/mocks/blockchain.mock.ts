@@ -37,6 +37,7 @@ export const mockStomaTradeContractService = {
   createProject: jest.fn().mockResolvedValue(mockTransactionResult),
   addFarmer: jest.fn().mockResolvedValue(mockTransactionResult),
   mintFarmerNFT: jest.fn().mockResolvedValue(mockTransactionResult),
+  addFarmer: jest.fn().mockResolvedValue(mockTransactionResult),
   invest: jest.fn().mockResolvedValue(mockTransactionResult),
   finishProject: jest.fn().mockResolvedValue(mockTransactionResult),
   claimWithdraw: jest.fn().mockResolvedValue(mockTransactionResult),

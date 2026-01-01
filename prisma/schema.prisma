@@ -177,6 +177,8 @@ model Project {
   volume            Float
   volumeDecimal     Int                @default(18)
   profitShare       Int?
+  totalKilos        Float?
+  profitPerKillos   Float?
   sendDate          DateTime
   status            PROJECT_STATUS     @default(ACTIVE)
   createdAt         DateTime           @default(now())

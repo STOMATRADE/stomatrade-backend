@@ -29,8 +29,8 @@ describe('ProjectSubmissionsService', () => {
   const mockSubmission = {
     id: 'submission-uuid-1',
     projectId: 'project-uuid-1',
-    valueProject: '1000000000000000000000',
-    maxCrowdFunding: '500000000000000000000',
+    valueProject: '1000', // Amount bersih (akan diconvert ke wei saat blockchain)
+    maxCrowdFunding: '500', // Amount bersih (akan diconvert ke wei saat blockchain)
     metadataCid: 'QmTestCid',
     status: SUBMISSION_STATUS.SUBMITTED,
     submittedBy: '0xSubmitterAddress',
@@ -76,8 +76,8 @@ describe('ProjectSubmissionsService', () => {
     it('should create a project submission', async () => {
       const createDto = {
         projectId: 'project-uuid-1',
-        valueProject: '1000000000000000000000',
-        maxCrowdFunding: '500000000000000000000',
+        valueProject: '1000', // Amount bersih
+        maxCrowdFunding: '500', // Amount bersih
         metadataCid: 'QmTestCid',
         submittedBy: '0xSubmitterAddress',
       };
@@ -172,6 +172,7 @@ describe('ProjectSubmissionsService', () => {
         ...mockProject,
         tokenId: 3001,
       });
+      prisma.file.findMany.mockResolvedValue([]);
 
       contractService.createProject.mockResolvedValue({
         hash: '0xTxHash',
