@@ -12,7 +12,10 @@ export class CreateInvestmentDto {
   @IsNotEmpty()
   projectId: string;
 
-  @ApiProperty({example: '100000000000000000000',})
+  @ApiProperty({
+    example: '10000',
+    description: 'Investment amount (clean value, will be auto-converted to wei for blockchain)',
+  })
   @IsString()
   @IsNotEmpty()
   amount: string;

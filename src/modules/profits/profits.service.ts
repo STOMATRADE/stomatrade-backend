@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StomaTradeContractService } from '../../blockchain/services/stomatrade-contract.service';
 import { DepositProfitDto } from './dto/deposit-profit.dto';
 import { ClaimProfitDto } from './dto/claim-profit.dto';
+import { toWei } from '../../common/utils/wei-converter.util';
 
 @Injectable()
 export class ProfitsService {
@@ -36,17 +37,18 @@ export class ProfitsService {
     }
 
     try {
-      
+
       const projectTokenId = BigInt(project.tokenId);
-      const amount = BigInt(dto.amount);
+      // Convert amount bersih ke wei untuk blockchain
+      const amountInWei = toWei(dto.amount);
 
       this.logger.log(
-        `Calling blockchain depositProfit() - ProjectId: ${projectTokenId}, Amount: ${amount}`,
+        `Calling blockchain depositProfit() - ProjectId: ${projectTokenId}, Amount: ${amountInWei}`,
       );
 
       const txResult = await this.stomaTradeContract.depositProfit(
         projectTokenId,
-        amount,
+        amountInWei,
       );
 
       let profitPool = await this.prisma.profitPool.findUnique({
@@ -63,11 +65,11 @@ export class ProfitsService {
           },
         });
       } else {
-        
+        // Calculate dari amount bersih (sudah bersih di DB)
         const newTotalDeposited =
-          BigInt(profitPool.totalDeposited) + BigInt(dto.amount);
+          Number(profitPool.totalDeposited) + Number(dto.amount);
         const newRemainingProfit =
-          BigInt(profitPool.remainingProfit) + BigInt(dto.amount);
+          Number(profitPool.remainingProfit) + Number(dto.amount);
 
         profitPool = await this.prisma.profitPool.update({
           where: { projectId: dto.projectId },
@@ -186,11 +188,11 @@ export class ProfitsService {
           },
         });
       } else {
-        
+        // Calculate dari amount bersih (sudah bersih di DB)
         const newTotalClaimed =
-          BigInt(profitPool.totalClaimed) + BigInt(claimedAmount);
+          Number(profitPool.totalClaimed) + Number(claimedAmount);
         const newRemainingProfit =
-          BigInt(profitPool.remainingProfit) - BigInt(claimedAmount);
+          Number(profitPool.remainingProfit) - Number(claimedAmount);
 
         profitPool = await this.prisma.profitPool.update({
           where: { projectId: dto.projectId },

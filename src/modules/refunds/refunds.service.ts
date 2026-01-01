@@ -266,18 +266,19 @@ export class RefundsService {
       },
     });
 
+    // Calculate dari amount bersih (sudah bersih di DB)
     const totalInvested = investments.reduce(
-      (sum, inv) => sum + BigInt(inv.amount),
-      BigInt(0),
+      (sum, inv) => sum + Number(inv.amount),
+      0,
     );
 
     const totalClaimed = investments.reduce((sum, inv) => {
       const claimed = inv.profitClaims.reduce(
-        (claimSum, claim) => claimSum + BigInt(claim.amount),
-        BigInt(0),
+        (claimSum, claim) => claimSum + Number(claim.amount),
+        0,
       );
       return sum + claimed;
-    }, BigInt(0));
+    }, 0);
 
     const totalProfit = totalClaimed;
     const activeInvestments = investments.filter(
@@ -285,8 +286,8 @@ export class RefundsService {
     ).length;
 
     const avgROI =
-      totalInvested > BigInt(0)
-        ? (Number(totalProfit) / Number(totalInvested)) * 100
+      totalInvested > 0
+        ? (totalProfit / totalInvested) * 100
         : 0;
 
     await this.prisma.investmentPortfolio.upsert({
