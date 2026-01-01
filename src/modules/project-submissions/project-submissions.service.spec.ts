@@ -22,6 +22,8 @@ describe('ProjectSubmissionsService', () => {
         },
       },
     },
+    volume: 1000,
+    profitShare: 10,
   };
 
   const mockSubmission = {
@@ -195,7 +197,7 @@ describe('ProjectSubmissionsService', () => {
 
       const result = await service.approve('submission-uuid-1', {
         approvedBy: '0xAdminWallet',
-      });
+      }, 4202);
 
       expect(contractService.createProject).toHaveBeenCalled();
       expect(result.status).toBe(SUBMISSION_STATUS.MINTED);
@@ -209,7 +211,7 @@ describe('ProjectSubmissionsService', () => {
       prisma.projectSubmission.findUnique.mockResolvedValue(approvedSubmission);
 
       await expect(
-        service.approve('submission-uuid-1', { approvedBy: '0xAdmin' }),
+        service.approve('submission-uuid-1', { approvedBy: '0xAdmin' }, 4202),
       ).rejects.toThrow(BadRequestException);
     });
   });

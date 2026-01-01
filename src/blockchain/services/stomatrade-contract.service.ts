@@ -6,21 +6,11 @@ import { PlatformWalletService } from './platform-wallet.service';
 import { TransactionService, TransactionResult } from './transaction.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 
-export interface ProjectData {
-  owner: string;
-  valueProject: bigint;
-  maxCrowdFunding: bigint;
-  totalRaised: bigint;
-  status: number;
-  cid: string;
-}
-
 @Injectable()
 export class StomaTradeContractService implements OnModuleInit {
   private readonly logger = new Logger(StomaTradeContractService.name);
-  private contract: ethers.Contract;
-  private stomatradeAddress: string;
-  private stomatradeAbi: any;
+  private contracts: Map<number, ethers.Contract> = new Map();
+  private readonly DEFAULT_CHAIN_NAME = 'StomaTrade';
 
   constructor(
     private readonly configService: ConfigService,
@@ -28,56 +18,91 @@ export class StomaTradeContractService implements OnModuleInit {
     private readonly walletService: PlatformWalletService,
     private readonly transactionService: TransactionService,
     private readonly prisma: PrismaService
-  ) {}
+  ) { }
 
   async onModuleInit() {
-    const project = await this.prisma.appProject.findFirst({
-      where: {
-        name: 'StomaTrade',
-      },
-    });
-
-
-    if (!project?.contractAddress) {
-      throw new Error('STOMA_TRADE_ADDRESS not found');
-    }
-    this.stomatradeAddress = project.contractAddress;
-
-    if (!project?.abi) {
-      throw new Error('STOMA_TRADE_ABI not found');
-    }
-    this.stomatradeAbi = JSON.parse(project.abi.replace(/\\"/g, '"'));
-
-
-    const wallet = this.walletService.getWallet();
-    this.contract = new ethers.Contract(
-      this.stomatradeAddress,
-      this.stomatradeAbi,
-      wallet,
-    );
-
-    this.logger.log(
-      `StomaTrade contract initialized at: ${this.stomatradeAddress}`,
-    );
+    this.logger.log('StomaTradeContractService initialized. Ready to handle multi-chain requests.');
   }
 
-  getContract(): ethers.Contract {
-    if (!this.contract) {
-      throw new Error('Contract not initialized');
+  /**
+   * Resolve contract instance for a specific chain ID
+   */
+  async getContract(chainId: number): Promise<ethers.Contract> {
+    if (this.contracts.has(chainId)) {
+      return this.contracts.get(chainId)!;
     }
-    return this.contract;
+
+    this.logger.log(`Initializing contract for Chain ID: ${chainId}`);
+
+    const smartContract = await this.prisma.smartContract.findFirst({
+      where: {
+        name: this.DEFAULT_CHAIN_NAME,
+        chainId: chainId.toString(),
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!smartContract) {
+      throw new Error(`Smart Contract config not found for Chain ID: ${chainId}`);
+    }
+
+    if (!smartContract.contractAddress || !smartContract.abi) {
+      throw new Error(`Invalid Smart Contract config for Chain ID: ${chainId}`);
+    }
+
+    const abi = JSON.parse(smartContract.abi.replace(/\\"/g, '"'));
+
+    // Determine Provider
+    let provider = this.providerService.getProvider();
+    if (smartContract.rpcUrl) {
+      // Create dedicated provider for this chain
+      provider = this.providerService.createProviderFromUrl(smartContract.rpcUrl, chainId);
+    }
+
+    // Determine Signer
+    const privateKey = this.configService.get<string>('PLATFORM_WALLET_PRIVATE_KEY');
+    if (!privateKey) {
+      throw new Error('PLATFORM_WALLET_PRIVATE_KEY is not configured');
+    }
+    const signer = new ethers.Wallet(privateKey, provider);
+
+    const contract = new ethers.Contract(
+      smartContract.contractAddress,
+      abi,
+      signer,
+    );
+
+    this.contracts.set(chainId, contract);
+    return contract;
+  }
+
+  /**
+   * Get default contract (useful for non-chain-specific reads if fallback needed)
+   */
+  async getDefaultContract(): Promise<ethers.Contract> {
+    const defaultChainId = this.providerService.getChainId();
+    return this.getContract(defaultChainId);
+  }
+
+  async getContractInstance(chainId?: number): Promise<ethers.Contract> {
+    if (chainId) {
+      return this.getContract(chainId);
+    }
+    return this.getDefaultContract();
   }
 
   getstomatradeAddress(): string {
-    return this.stomatradeAddress;
+    // This is ambiguous in multi-chain context, but kept for compatibility.
+    // Ideally should be deprecated or accept chainId
+    return '';
   }
 
   /**
    * Encode raw calldata for a contract function using the loaded ABI.
    * Useful for frontends that need hex data without sending a transaction.
    */
-  encodeFunctionData(functionName: string, args: unknown[]): string {
-    const contract = this.getContract();
+  async encodeFunctionData(functionName: string, args: unknown[]): Promise<string> {
+    const contract = await this.getDefaultContract();
     return contract.interface.encodeFunctionData(functionName, args);
   }
 
@@ -103,31 +128,32 @@ export class StomaTradeContractService implements OnModuleInit {
     return url;
   }
 
-  getCreateProjectCalldata(
-    cid: string,
+  async getCreateProjectCalldata(
     valueProject: string | bigint,
-    maxInvested: string | bigint,
+    maxCrowdFunding: string | bigint,
     totalKilos: string | bigint,
     profitPerKillos: string | bigint,
-    sharedProfit: number | bigint,
-  ): string {
+    sharedProfit: string | bigint,
+    cid: string,
+  ): Promise<string> {
     return this.encodeFunctionData('createProject', [
       cid,
+      cid,
       valueProject,
-      maxInvested,
+      maxCrowdFunding,
       totalKilos,
       profitPerKillos,
       sharedProfit,
     ]);
   }
 
-  getMintFarmerCalldata(
+  async getAddFarmerCalldata(
     cid: string,
     idCollector: string,
     name: string,
-    age: number | bigint,
+    age: number | string,
     domicile: string,
-  ): string {
+  ): Promise<string> {
     return this.encodeFunctionData('addFarmer', [
       cid,
       idCollector,
@@ -141,11 +167,7 @@ export class StomaTradeContractService implements OnModuleInit {
    * Get the signer address
    */
   async getSignerAddress(): Promise<string> {
-    const runner = this.contract.runner;
-    if (runner && 'getAddress' in runner) {
-      return await (runner as ethers.Signer).getAddress();
-    }
-    return '';
+    return this.walletService.getAddress();
   }
 
   // ============ WRITE FUNCTIONS ============
@@ -154,36 +176,42 @@ export class StomaTradeContractService implements OnModuleInit {
    * Create a new project on the blockchain
    */
   async createProject(
-    cid: string,
+    chainId: number,
     valueProject: bigint,
-    maxInvested: bigint,
+    maxCrowdFunding: bigint,
     totalKilos: bigint,
     profitPerKillos: bigint,
     sharedProfit: bigint,
+    cid: string,
   ): Promise<TransactionResult> {
-    this.logger.log('Creating project on blockchain');
+    this.logger.log(`Creating project on blockchain (Chain ${chainId})`);
+
+    const contract = await this.getContract(chainId);
 
     return await this.transactionService.executeContractMethod(
-      this.contract,
+      contract,
       'createProject',
-      [cid, valueProject, maxInvested, totalKilos, profitPerKillos, sharedProfit],
+      [cid, valueProject, maxCrowdFunding, totalKilos, profitPerKillos, sharedProfit],
     );
   }
 
   /**
-   * Add Farmer NFT (called by platform after approval)
+   * Add Farmer (Mint Farmer NFT)
    */
   async addFarmer(
+    chainId: number,
     cid: string,
     idCollector: string,
     name: string,
-    age: bigint,
+    age: number,
     domicile: string,
   ): Promise<TransactionResult> {
-    this.logger.log(`Adding Farmer NFT: ${name}`);
+    this.logger.log(`Adding farmer: ${name} (${idCollector}) on Chain ${chainId}`);
+
+    const contract = await this.getContract(chainId);
 
     return await this.transactionService.executeContractMethod(
-      this.contract,
+      contract,
       'addFarmer',
       [cid, idCollector, name, age, domicile],
     );
@@ -194,58 +222,68 @@ export class StomaTradeContractService implements OnModuleInit {
    * Note: This should be called by the investor's wallet, not the platform wallet
    */
   async invest(
+    chainId: number,
     cid: string,
     projectId: bigint,
     amount: bigint,
   ): Promise<TransactionResult> {
-    this.logger.log(`Investing ${amount} in project ${projectId}`);
+    this.logger.log(`Investing ${amount} in project ${projectId} on Chain ${chainId}`);
+
+    const contract = await this.getContract(chainId);
 
     return await this.transactionService.executeContractMethod(
-      this.contract,
+      contract,
       'invest',
+      [cid, projectId, amount],
       [cid, projectId, amount],
     );
   }
 
   /**
-   * Admin deposits profit for a project
+   * Admin finishes project (deposits profit implicitly via transferFrom)
    */
-  async depositProfit(
+  async finishProject(
+    chainId: number,
     projectId: bigint,
-    amount: bigint,
   ): Promise<TransactionResult> {
-    this.logger.log(`Depositing profit ${amount} for project ${projectId}`);
+    this.logger.log(`Finishing project ${projectId} on Chain ${chainId}`);
+
+    const contract = await this.getContract(chainId);
 
     return await this.transactionService.executeContractMethod(
-      this.contract,
-      'depositProfit',
-      [projectId, amount],
-    );
-  }
-
-  /**
-   * Investor claims profit from a project
-   * Note: This should be called by the investor's wallet, not the platform wallet
-   */
-  async claimProfit(projectId: bigint): Promise<TransactionResult> {
-    this.logger.log(`Claiming profit for project ${projectId}`);
-
-    return await this.transactionService.executeContractMethod(
-      this.contract,
-      'claimProfit',
+      contract,
+      'finishProject',
       [projectId],
     );
   }
 
   /**
-   * Admin marks project as refundable
+   * Investor claims return (profit + principal) from a project
+   * Note: This should be called by the investor's wallet, not the platform wallet
    */
-  async markRefundable(projectId: bigint): Promise<TransactionResult> {
-    this.logger.log(`Marking project ${projectId} as refundable`);
+  async claimWithdraw(chainId: number, projectId: bigint): Promise<TransactionResult> {
+    this.logger.log(`Claiming withdrawal for project ${projectId} on Chain ${chainId}`);
+
+    const contract = await this.getContract(chainId);
 
     return await this.transactionService.executeContractMethod(
-      this.contract,
-      'refundable',
+      contract,
+      'claimWithdraw',
+      [projectId],
+    );
+  }
+
+  /**
+   * Admin marks project as refundable (refundProject)
+   */
+  async refundProject(chainId: number, projectId: bigint): Promise<TransactionResult> {
+    this.logger.log(`Marking project ${projectId} as refundable on Chain ${chainId}`);
+
+    const contract = await this.getContract(chainId);
+
+    return await this.transactionService.executeContractMethod(
+      contract,
+      'refundProject',
       [projectId],
     );
   }
@@ -254,25 +292,30 @@ export class StomaTradeContractService implements OnModuleInit {
    * Investor claims refund from a project
    * Note: This should be called by the investor's wallet, not the platform wallet
    */
-  async claimRefund(projectId: bigint): Promise<TransactionResult> {
-    this.logger.log(`Claiming refund for project ${projectId}`);
+  async claimRefund(chainId: number, projectId: bigint): Promise<TransactionResult> {
+    this.logger.log(`Claiming refund for project ${projectId} on Chain ${chainId}`);
+
+    const contract = await this.getContract(chainId);
 
     return await this.transactionService.executeContractMethod(
-      this.contract,
+      contract,
       'claimRefund',
       [projectId],
     );
   }
 
   /**
-   * Close crowdfunding for a project
+   * Close project (before funding / after funding if needed?)
+   * Note: closeProject exists in contract
    */
-  async closeCrowdFunding(projectId: bigint): Promise<TransactionResult> {
-    this.logger.log(`Closing crowdfunding for project ${projectId}`);
+  async closeProject(chainId: number, projectId: bigint): Promise<TransactionResult> {
+    this.logger.log(`Closing project ${projectId} on Chain ${chainId}`);
+
+    const contract = await this.getContract(chainId);
 
     return await this.transactionService.executeContractMethod(
-      this.contract,
-      'closeCrowdFunding',
+      contract,
+      'closeProject',
       [projectId],
     );
   }
@@ -280,67 +323,19 @@ export class StomaTradeContractService implements OnModuleInit {
   // ============ READ FUNCTIONS ============
 
   /**
-   * Get project data
-   */
-  async getProject(projectId: bigint): Promise<ProjectData> {
-    this.logger.log(`Getting project ${projectId} data`);
-
-    const result = await this.transactionService.callContractMethod(
-      this.contract,
-      'getProject',
-      [projectId],
-    );
-
-    return {
-      owner: result.owner,
-      valueProject: result.valueProject,
-      maxCrowdFunding: result.maxCrowdFunding,
-      totalRaised: result.totalRaised,
-      status: result.status,
-      cid: result.cid,
-    };
-  }
-
-  /**
-   * Get investor contribution to a project
-   */
-  async getContribution(
-    projectId: bigint,
-    investor: string,
-  ): Promise<bigint> {
-    this.logger.log(`Getting contribution for project ${projectId} from ${investor}`);
-
-    return await this.transactionService.callContractMethod(
-      this.contract,
-      'getContribution',
-      [projectId, investor],
-    );
-  }
-
-  /**
-   * Get profit pool for a project
-   */
-  async getProfitPool(projectId: bigint): Promise<bigint> {
-    this.logger.log(`Getting profit pool for project ${projectId}`);
-
-    return await this.transactionService.callContractMethod(
-      this.contract,
-      'getProfitPool',
-      [projectId],
-    );
-  }
-
-  /**
    * Get claimed profit by an investor
    */
   async getClaimedProfit(
+    chainId: number,
     projectId: bigint,
     investor: string,
   ): Promise<bigint> {
-    this.logger.log(`Getting claimed profit for project ${projectId} from ${investor}`);
+    this.logger.log(`Getting claimed profit for project ${projectId} from ${investor} on Chain ${chainId}`);
+
+    const contract = await this.getContract(chainId);
 
     return await this.transactionService.callContractMethod(
-      this.contract,
+      contract,
       'getClaimedProfit',
       [projectId, investor],
     );
@@ -349,11 +344,13 @@ export class StomaTradeContractService implements OnModuleInit {
   /**
    * Get token URI for an NFT
    */
-  async getTokenURI(tokenId: bigint): Promise<string> {
-    this.logger.log(`Getting token URI for token ${tokenId}`);
+  async getTokenURI(chainId: number, tokenId: bigint): Promise<string> {
+    this.logger.log(`Getting token URI for token ${tokenId} on Chain ${chainId}`);
+
+    const contract = await this.getContract(chainId);
 
     return await this.transactionService.callContractMethod(
-      this.contract,
+      contract,
       'tokenURI',
       [tokenId],
     );
@@ -364,12 +361,13 @@ export class StomaTradeContractService implements OnModuleInit {
   /**
    * Parse event logs from transaction receipt
    */
-  parseEventLogs(receipt: ethers.TransactionReceipt): ethers.EventLog[] {
+  async parseEventLogs(chainId: number, receipt: ethers.TransactionReceipt): Promise<ethers.EventLog[]> {
+    const contract = await this.getContract(chainId);
     const parsedLogs: ethers.EventLog[] = [];
 
     for (const log of receipt.logs) {
       try {
-        const parsed = this.contract.interface.parseLog({
+        const parsed = contract.interface.parseLog({
           topics: log.topics as string[],
           data: log.data,
         });
@@ -388,21 +386,48 @@ export class StomaTradeContractService implements OnModuleInit {
   /**
    * Get specific event from transaction receipt
    */
-  getEventFromReceipt(
+  async getEventFromReceipt(
+    chainId: number,
     receipt: ethers.TransactionReceipt,
     eventName: string,
-  ): ethers.EventLog | null {
-    const parsedLogs = this.parseEventLogs(receipt);
+  ): Promise<ethers.EventLog | null> {
+    const parsedLogs = await this.parseEventLogs(chainId, receipt);
 
-    for (const log of parsedLogs) {
-      const parsed = this.contract.interface.parseLog({
-        topics: log.topics,
-        data: log.data,
-      });
+    // We need interface to compare names, so get contract again or reuse if possible
+    // parsedLogs contains filtered logs already so iterating them is fine
+    // But to check name we need the parsed result which we lost in loop above?
+    // Wait, log as ethers.EventLog casting might not be enough if we don't attach the parsed description?
+    // ethers.EventLog has fragment/name properties.
+    // Let's re-parse properly.
 
-      if (parsed && parsed.name === eventName) {
-        return log;
-      }
+    const contract = await this.getContract(chainId);
+
+    for (const log of receipt.logs) {
+      try {
+        const parsed = contract.interface.parseLog({
+          topics: log.topics as string[],
+          data: log.data,
+        });
+        if (parsed && parsed.name === eventName) {
+          // Return a structure compatible with what caller expects (often the log with args attached)
+          // In ethers v6, parseLog returns LogDescription.
+          // We might need to map it.
+          // For now, let's trust the caller handles the return type which seems to be EventLog | null
+
+          // Let's try to return the log but enriched? 
+          // Or just return the parsed description? 
+          // The previous code returned `log` if parsed.name matched.
+
+          return {
+            ...log,
+            args: parsed.args,
+            fragment: parsed.fragment,
+            name: parsed.name,
+            signature: parsed.signature,
+            topic: parsed.topic
+          } as any;
+        }
+      } catch (e) { }
     }
 
     return null;

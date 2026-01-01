@@ -16,9 +16,9 @@ export class RefundsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stomaTradeContract: StomaTradeContractService,
-  ) {}
+  ) { }
 
-  async markRefundable(dto: MarkRefundableDto) {
+  async markRefundable(dto: MarkRefundableDto, chainId: number) {
     this.logger.log(`Marking project ${dto.projectId} as refundable`);
 
     const project = await this.prisma.project.findUnique({
@@ -39,14 +39,14 @@ export class RefundsService {
     }
 
     try {
-      
+
       const projectTokenId = BigInt(project.tokenId);
 
       this.logger.log(
         `Calling blockchain refundable() - ProjectId: ${projectTokenId}`,
       );
 
-      const txResult = await this.stomaTradeContract.markRefundable(projectTokenId);
+      const txResult = await this.stomaTradeContract.refundProject(chainId, projectTokenId);
 
       const blockchainTx = await this.prisma.blockchainTransaction.create({
         data: {
@@ -87,7 +87,7 @@ export class RefundsService {
     }
   }
 
-  async claimRefund(dto: ClaimRefundDto) {
+  async claimRefund(dto: ClaimRefundDto, chainId: number) {
     this.logger.log(
       `User ${dto.userId} claiming refund from project ${dto.projectId}`,
     );
@@ -129,29 +129,29 @@ export class RefundsService {
     }
 
     try {
-      
+
       const projectTokenId = BigInt(project.tokenId);
 
       this.logger.log(
         `Calling blockchain claimRefund() - ProjectId: ${projectTokenId}`,
       );
 
-      const txResult = await this.stomaTradeContract.claimRefund(projectTokenId);
+      const txResult = await this.stomaTradeContract.claimRefund(chainId, projectTokenId);
 
-      let refundedAmount = investment.amount; 
+      let refundedAmount = investment.amount;
       if (txResult.receipt) {
-        const refundedEvent = this.stomaTradeContract.getEventFromReceipt(
+        const refundedEvent = await this.stomaTradeContract.getEventFromReceipt(
+          chainId,
           txResult.receipt,
           'Refunded',
         );
 
         if (refundedEvent) {
-          const parsed = this.stomaTradeContract
-            .getContract()
-            .interface.parseLog({
-              topics: refundedEvent.topics,
-              data: refundedEvent.data,
-            });
+          const contract = await this.stomaTradeContract.getContract(chainId);
+          const parsed = contract.interface.parseLog({
+            topics: refundedEvent.topics,
+            data: refundedEvent.data,
+          });
 
           if (parsed) {
             refundedAmount = parsed.args.amount.toString();
@@ -182,7 +182,7 @@ export class RefundsService {
       await this.prisma.investment.update({
         where: { id: investment.id },
         data: {
-          deleted: true, 
+          deleted: true,
         },
       });
 
@@ -211,7 +211,7 @@ export class RefundsService {
   }
 
   async getRefundableProjects() {
-    
+
     const projects = await this.prisma.project.findMany({
       where: {
         tokenId: { not: null },
@@ -311,4 +311,4 @@ export class RefundsService {
       },
     });
   }
-}
+}

@@ -11,13 +11,16 @@ import { RefundsService } from './refunds.service';
 import { MarkRefundableDto } from './dto/mark-refundable.dto';
 import { ClaimRefundDto } from './dto/claim-refund.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { ChainId } from '../../common/decorators/chain-id.decorator';
 import { ROLES } from '@prisma/client';
+import { UserRefundClaimResponseDto } from './dto/refund-response.dto';
+import { ProjectResponseDto } from '../projects/dto/project-response.dto';
 
 @ApiTags('Refunds')
 @ApiBearerAuth('JWT-auth')
 @Controller('refunds')
 export class RefundsController {
-  constructor(private readonly refundsService: RefundsService) {}
+  constructor(private readonly refundsService: RefundsService) { }
 
   @Roles(ROLES.ADMIN)
   @Post('mark-refundable')
@@ -29,6 +32,7 @@ export class RefundsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Project marked as refundable successfully',
+    type: ProjectResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -42,8 +46,11 @@ export class RefundsController {
     status: HttpStatus.FORBIDDEN,
     description: 'Admin access required',
   })
-  markRefundable(@Body() dto: MarkRefundableDto) {
-    return this.refundsService.markRefundable(dto);
+  markRefundable(
+    @Body() dto: MarkRefundableDto,
+    @ChainId() chainId: number,
+  ) {
+    return this.refundsService.markRefundable(dto, chainId);
   }
 
   @Post('claim')
@@ -55,6 +62,7 @@ export class RefundsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Refund claimed successfully',
+    type: UserRefundClaimResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -68,8 +76,11 @@ export class RefundsController {
     status: HttpStatus.UNAUTHORIZED,
     description: 'Authentication required',
   })
-  claimRefund(@Body() dto: ClaimRefundDto) {
-    return this.refundsService.claimRefund(dto);
+  claimRefund(
+    @Body() dto: ClaimRefundDto,
+    @ChainId() chainId: number
+  ) {
+    return this.refundsService.claimRefund(dto, chainId);
   }
 
   @Get('projects')
@@ -80,6 +91,7 @@ export class RefundsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Refundable projects retrieved successfully',
+    type: [ProjectResponseDto],
   })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
@@ -97,6 +109,7 @@ export class RefundsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'User refund claims retrieved successfully',
+    type: [UserRefundClaimResponseDto],
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
@@ -109,4 +122,4 @@ export class RefundsController {
   getUserRefundClaims(@Param('userId') userId: string) {
     return this.refundsService.getUserRefundClaims(userId);
   }
-}
+}

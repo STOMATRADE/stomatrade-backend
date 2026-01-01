@@ -16,6 +16,7 @@ import { RejectFarmerSubmissionDto } from './dto/reject-farmer-submission.dto';
 import { FarmerSubmissionResponseDto } from './dto/farmer-submission-response.dto';
 import { SUBMISSION_STATUS, ROLES } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { ChainId } from '../../common/decorators/chain-id.decorator';
 
 @ApiTags('Farmer Submissions')
 @ApiBearerAuth('JWT-auth')
@@ -23,7 +24,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class FarmerSubmissionsController {
   constructor(
     private readonly farmerSubmissionsService: FarmerSubmissionsService,
-  ) {}
+  ) { }
 
   @Roles(ROLES.COLLECTOR, ROLES.STAFF, ROLES.ADMIN)
   @Post()
@@ -49,8 +50,11 @@ export class FarmerSubmissionsController {
     status: HttpStatus.FORBIDDEN,
     description: 'Insufficient permissions',
   })
-  create(@Body() dto: CreateFarmerSubmissionDto) {
-    return this.farmerSubmissionsService.create(dto);
+  create(
+    @Body() dto: CreateFarmerSubmissionDto,
+    @ChainId() chainId: number,
+  ) {
+    return this.farmerSubmissionsService.create(dto, chainId);
   }
 
   @Roles(ROLES.STAFF, ROLES.ADMIN)
@@ -68,6 +72,7 @@ export class FarmerSubmissionsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Farmer submissions retrieved successfully',
+    type: [FarmerSubmissionResponseDto],
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,
@@ -123,8 +128,12 @@ export class FarmerSubmissionsController {
     status: HttpStatus.FORBIDDEN,
     description: 'Admin access required',
   })
-  approve(@Param('id') id: string, @Body() dto: ApproveFarmerSubmissionDto) {
-    return this.farmerSubmissionsService.approve(id, dto);
+  approve(
+    @Param('id') id: string,
+    @Body() dto: ApproveFarmerSubmissionDto,
+    @ChainId() chainId: number,
+  ) {
+    return this.farmerSubmissionsService.approve(id, dto, chainId);
   }
 
   @Roles(ROLES.ADMIN)

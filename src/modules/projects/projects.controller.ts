@@ -30,13 +30,14 @@ import { ProjectDetailResponseDto } from './dto/project-detail-response.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
+import { ChainId } from '../../common/decorators/chain-id.decorator';
 import { ROLES } from '@prisma/client';
 
 @ApiTags('Projects')
 @ApiBearerAuth('JWT-auth')
 @Controller('projects')
 export class ProjectsController {
-  constructor(private readonly projectsService: ProjectsService) {}
+  constructor(private readonly projectsService: ProjectsService) { }
 
   @Roles(ROLES.ADMIN, ROLES.STAFF, ROLES.COLLECTOR)
   @Post()
@@ -61,7 +62,11 @@ export class ProjectsController {
     status: HttpStatus.FORBIDDEN,
     description: 'Insufficient permissions',
   })
-  create(@Body() createProjectDto: CreateProjectDto): Promise<ProjectResponseDto> {
+  create(
+    @ChainId() chainId: number,
+    @Body() createProjectDto: CreateProjectDto
+  ): Promise<ProjectResponseDto> {
+    // ChainId is required by policy but not used for DB creation yet
     return this.projectsService.create(createProjectDto);
   }
 
@@ -240,7 +245,9 @@ export class ProjectsController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProjectDto: UpdateProjectDto,
+    @ChainId() chainId: number,
   ): Promise<ProjectResponseDto> {
+    // ChainId is required by policy but not used for DB update yet
     return this.projectsService.update(id, updateProjectDto);
   }
 

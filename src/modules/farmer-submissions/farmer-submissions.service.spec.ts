@@ -77,7 +77,7 @@ describe('FarmerSubmissionsService', () => {
       prisma.farmerSubmission.findUnique.mockResolvedValue(null);
       prisma.farmerSubmission.create.mockResolvedValue(mockSubmission);
 
-      const result = await service.create(createDto);
+      const result = await service.create(createDto, 4202);
 
       expect(prisma.farmerSubmission.create).toHaveBeenCalled();
       expect(result).toEqual(mockSubmission);
@@ -91,7 +91,7 @@ describe('FarmerSubmissionsService', () => {
           farmerId: 'non-existent',
           commodity: 'Coffee',
           submittedBy: '0x123',
-        }),
+        }, 4202),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -104,7 +104,7 @@ describe('FarmerSubmissionsService', () => {
           farmerId: 'farmer-uuid-1',
           commodity: 'Coffee',
           submittedBy: '0x123',
-        }),
+        }, 4202),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -214,7 +214,7 @@ describe('FarmerSubmissionsService', () => {
 
       const result = await service.approve('submission-uuid-1', {
         approvedBy: '0xAdminWallet',
-      });
+      }, 4202);
 
       expect(contractService.addFarmer).toHaveBeenCalled();
       expect(result.status).toBe(SUBMISSION_STATUS.MINTED);
@@ -228,7 +228,7 @@ describe('FarmerSubmissionsService', () => {
       prisma.farmerSubmission.findUnique.mockResolvedValue(approvedSubmission);
 
       await expect(
-        service.approve('submission-uuid-1', { approvedBy: '0xAdmin' }),
+        service.approve('submission-uuid-1', { approvedBy: '0xAdmin' }, 4202),
       ).rejects.toThrow(BadRequestException);
     });
   });

@@ -11,13 +11,15 @@ import { ProfitsService } from './profits.service';
 import { DepositProfitDto } from './dto/deposit-profit.dto';
 import { ClaimProfitDto } from './dto/claim-profit.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { ChainId } from '../../common/decorators/chain-id.decorator';
 import { ROLES } from '@prisma/client';
+import { ProfitPoolResponseDto, UserProfitClaimResponseDto } from './dto/profit-response.dto';
 
 @ApiTags('Profits')
 @ApiBearerAuth('JWT-auth')
 @Controller('profits')
 export class ProfitsController {
-  constructor(private readonly profitsService: ProfitsService) {}
+  constructor(private readonly profitsService: ProfitsService) { }
 
   @Roles(ROLES.ADMIN)
   @Post('deposit')
@@ -29,6 +31,7 @@ export class ProfitsController {
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Profit deposited successfully on blockchain',
+    type: ProfitPoolResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -42,8 +45,11 @@ export class ProfitsController {
     status: HttpStatus.FORBIDDEN,
     description: 'Admin access required',
   })
-  depositProfit(@Body() dto: DepositProfitDto) {
-    return this.profitsService.depositProfit(dto);
+  depositProfit(
+    @Body() dto: DepositProfitDto,
+    @ChainId() chainId: number,
+  ) {
+    return this.profitsService.depositProfit(dto, chainId);
   }
 
   @Post('claim')
@@ -55,6 +61,7 @@ export class ProfitsController {
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Profit claimed successfully',
+    type: UserProfitClaimResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -69,8 +76,11 @@ export class ProfitsController {
     status: HttpStatus.UNAUTHORIZED,
     description: 'Authentication required',
   })
-  claimProfit(@Body() dto: ClaimProfitDto) {
-    return this.profitsService.claimProfit(dto);
+  claimProfit(
+    @Body() dto: ClaimProfitDto,
+    @ChainId() chainId: number
+  ) {
+    return this.profitsService.claimProfit(dto, chainId);
   }
 
   @Roles(ROLES.ADMIN)
@@ -82,6 +92,7 @@ export class ProfitsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Profit pools retrieved successfully',
+    type: [ProfitPoolResponseDto],
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,
@@ -99,6 +110,7 @@ export class ProfitsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Profit pool retrieved successfully',
+    type: ProfitPoolResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
@@ -120,6 +132,7 @@ export class ProfitsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'User profit claims retrieved successfully',
+    type: [UserProfitClaimResponseDto],
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,

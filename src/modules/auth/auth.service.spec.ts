@@ -39,7 +39,6 @@ describeOrSkip('AuthService', () => {
     },
     nonce: {
       create: jest.fn(),
-      findFirst: jest.fn(),
       deleteMany: jest.fn(),
     },
   };

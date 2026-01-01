@@ -16,27 +16,9 @@ export class InvestmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stomaTradeContract: StomaTradeContractService,
-  ) {}
+  ) { }
 
-  /**
-   * Extract CID from various IPFS URL formats
-   */
-  private extractCID(url: string): string {
-    if (!url) return '';
-
-    if (url.startsWith('ipfs://')) {
-      return url.replace('ipfs://', '');
-    }
-
-    const match = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
-    if (match) {
-      return match[1];
-    }
-
-    return url;
-  }
-
-  async create(dto: CreateInvestmentDto) {
+  async create(dto: CreateInvestmentDto, chainId: number) {
     this.logger.log(
       `Creating investment for user ${dto.userId} in project ${dto.projectId}`,
     );
@@ -116,25 +98,26 @@ export class InvestmentsService {
       const amountInWei = toWei(dto.amount);
 
       const txResult = await this.stomaTradeContract.invest(
-        cid,
+        chainId,
+        '', // cid
         projectTokenId,
         amountInWei,
       );
 
       let receiptTokenId: number | null = null;
       if (txResult.receipt) {
-        const investedEvent = this.stomaTradeContract.getEventFromReceipt(
+        const investedEvent = await this.stomaTradeContract.getEventFromReceipt(
+          chainId,
           txResult.receipt,
           'Invested',
         );
 
         if (investedEvent) {
-          const parsed = this.stomaTradeContract
-            .getContract()
-            .interface.parseLog({
-              topics: investedEvent.topics,
-              data: investedEvent.data,
-            });
+          const contract = await this.stomaTradeContract.getContract(chainId);
+          const parsed = contract.interface.parseLog({
+            topics: investedEvent.topics,
+            data: investedEvent.data,
+          });
 
           if (parsed) {
             receiptTokenId = Number(parsed.args.receiptTokenId);

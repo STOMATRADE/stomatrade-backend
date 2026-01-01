@@ -431,3 +431,17 @@ model Nonce {
   @@index([walletAddress])
   @@map("nonces")
 }
+
+model SmartContract {
+  id              String   @id @default(uuid())
+  name            String
+  contractAddress String
+  chainId         String
+  rpcUrl          String
+  abi             String?  @db.Text // JSON string
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deleted         Boolean  @default(false)
+
+  @@map("smart_contracts")
+}

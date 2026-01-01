@@ -19,25 +19,7 @@ export class ProjectSubmissionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stomaTradeContract: StomaTradeContractService,
-  ) {}
-
-  /**
-   * Extract CID from various IPFS URL formats
-   */
-  private extractCID(url: string): string {
-    if (!url) return '';
-
-    if (url.startsWith('ipfs://')) {
-      return url.replace('ipfs://', '');
-    }
-
-    const match = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
-    if (match) {
-      return match[1];
-    }
-
-    return url;
-  }
+  ) { }
 
   async create(dto: CreateProjectSubmissionDto) {
     this.logger.log(`Creating project submission for project ${dto.projectId}`);
@@ -87,9 +69,10 @@ export class ProjectSubmissionsService {
       dto.metadataCid || '',
       dto.valueProject,
       dto.maxCrowdFunding,
-      dto.totalKilos || '0',
-      dto.profitPerKillos || '0',
-      dto.sharedProfit || 0,
+      project.volume.toString(), // totalKilos
+      '1', // profitPerKillos (default as missing in DB)
+      (project.profitShare || 0).toString(), // sharedProfit
+      dto.metadataCid || '',
     );
 
     this.logger.log(`Project submission created: ${submission.id}`);
@@ -142,7 +125,7 @@ export class ProjectSubmissionsService {
     return submission;
   }
 
-  async approve(id: string, dto: ApproveProjectSubmissionDto) {
+  async approve(id: string, dto: ApproveProjectSubmissionDto, chainId: number) {
     this.logger.log(`Approving project submission ${id}`);
 
     const submission = await this.findOne(id);
@@ -182,12 +165,13 @@ export class ProjectSubmissionsService {
       const sharedProfit = BigInt(submission.project.profitShare || 0);
 
       const txResult = await this.stomaTradeContract.createProject(
-        cid,
+        chainId,
         valueProject,
         maxCrowdFunding,
-        totalKilos,
-        profitPerKillos,
-        sharedProfit,
+        BigInt(Math.floor(submission.project.volume)), // totalKilos
+        BigInt(1), // profitPerKillos
+        BigInt(submission.project.profitShare || 0), // sharedProfit
+        cid,
       );
 
       const blockchainTx = await this.prisma.blockchainTransaction.create({
@@ -206,18 +190,18 @@ export class ProjectSubmissionsService {
       let mintedTokenId: number | null = null;
       if (txResult.receipt) {
         const projectCreatedEvent =
-          this.stomaTradeContract.getEventFromReceipt(
+          await this.stomaTradeContract.getEventFromReceipt(
+            chainId,
             txResult.receipt,
             'ProjectCreated',
           );
 
         if (projectCreatedEvent) {
-          const parsed = this.stomaTradeContract
-            .getContract()
-            .interface.parseLog({
-              topics: projectCreatedEvent.topics,
-              data: projectCreatedEvent.data,
-            });
+          const contract = await this.stomaTradeContract.getContract(chainId);
+          const parsed = contract.interface.parseLog({
+            topics: projectCreatedEvent.topics,
+            data: projectCreatedEvent.data,
+          });
 
           if (parsed) {
             mintedTokenId = Number(parsed.args.idProject);
