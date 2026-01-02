@@ -7,10 +7,17 @@ export class EthersProviderService implements OnModuleInit {
   private readonly logger = new Logger(EthersProviderService.name);
   private provider: ethers.JsonRpcProvider;
   private chainId: number;
+  private initPromise: Promise<void>;
+  private isInitialized = false;
 
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
+    this.initPromise = this.initialize();
+    await this.initPromise;
+  }
+
+  private async initialize() {
     // Get blockchain configuration from database
     const appProject = await this.prisma.appProject.findFirst({
       where: {
@@ -47,6 +54,7 @@ export class EthersProviderService implements OnModuleInit {
 
     try {
       const network = await this.provider.getNetwork();
+      this.isInitialized = true;
       this.logger.log(
         `Connected to blockchain network: ${network.name} (Chain ID: ${network.chainId})`,
       );
@@ -55,6 +63,12 @@ export class EthersProviderService implements OnModuleInit {
     } catch (error) {
       this.logger.error('Failed to connect to blockchain provider', error);
       throw error;
+    }
+  }
+
+  async waitForInit(): Promise<void> {
+    if (this.initPromise) {
+      await this.initPromise;
     }
   }
 

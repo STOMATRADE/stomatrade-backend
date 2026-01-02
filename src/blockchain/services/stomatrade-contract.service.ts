@@ -83,6 +83,8 @@ export class StomaTradeContractService implements OnModuleInit {
     }
     this.stomatradeAbi = JSON.parse(project.abi.replace(/\\"/g, '"'));
 
+    // Wait for wallet service to initialize first
+    await this.walletService.waitForInit();
 
     const wallet = this.walletService.getWallet();
     this.contract = new ethers.Contract(
