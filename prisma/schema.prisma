@@ -436,3 +436,15 @@ model Nonce {
   @@index([walletAddress])
   @@map("nonces")
 }
+
+model Domain {
+  id           Int      @id @default(autoincrement())
+  domainCode   String   @unique
+  domainDesc   String
+  domainStatus Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deleted      Boolean  @default(false)
+
+  @@map("domains")
+}

@@ -26,6 +26,7 @@ import { CronModule } from './modules/cron/cron.module';
 import { RefundsModule } from './modules/refunds/refunds.module';
 import { UserDashboardModule } from './modules/user-dashboard/user-dashboard.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { DomainsModule } from './modules/domains/domains.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     RefundsModule,
     UserDashboardModule,
     AnalyticsModule,
+    DomainsModule,
   ],
   controllers: [AppController],
   providers: [
