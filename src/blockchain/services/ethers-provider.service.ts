@@ -18,19 +18,25 @@ export class EthersProviderService implements OnModuleInit {
   }
 
   private async initialize() {
-    // Get blockchain configuration from database
     const appProject = await this.prisma.appProject.findFirst({
       where: {
         name: 'StomaTrade',
+        deleted: false,
       },
     });
 
-    if (!appProject?.rpcUrl) {
-      throw new Error('RPC URL not found in database for StomaTrade project');
+    if (!appProject) {
+      throw new Error(
+        'Active StomaTrade AppProject configuration not found in database. Please ensure AppProject is configured and not deleted.',
+      );
     }
 
-    if (!appProject?.chainId) {
-      throw new Error('Chain ID not found in database for StomaTrade project');
+    if (!appProject.rpcUrl) {
+      throw new Error('RPC URL not found in StomaTrade AppProject configuration');
+    }
+
+    if (!appProject.chainId) {
+      throw new Error('Chain ID not found in StomaTrade AppProject configuration');
     }
 
     const rpcUrl = appProject.rpcUrl;

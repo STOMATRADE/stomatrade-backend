@@ -69,17 +69,25 @@ export class StomaTradeContractService implements OnModuleInit {
     const project = await this.prisma.appProject.findFirst({
       where: {
         name: 'StomaTrade',
+        deleted: false,
       },
     });
 
+    if (!project) {
+      throw new Error(
+        'Active StomaTrade AppProject configuration not found in database. Please ensure AppProject is configured and not deleted.',
+      );
+    }
 
-    if (!project?.contractAddress) {
-      throw new Error('STOMA_TRADE_ADDRESS not found');
+    if (!project.contractAddress) {
+      throw new Error(
+        'Contract address not found in StomaTrade AppProject configuration',
+      );
     }
     this.stomatradeAddress = project.contractAddress;
 
-    if (!project?.abi) {
-      throw new Error('STOMA_TRADE_ABI not found');
+    if (!project.abi) {
+      throw new Error('ABI not found in StomaTrade AppProject configuration');
     }
     this.stomatradeAbi = JSON.parse(project.abi.replace(/\\"/g, '"'));
 
