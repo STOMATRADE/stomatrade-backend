@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ethers } from 'ethers';
 import { PrismaService } from 'src/prisma/prisma.service';
 
+
 @Injectable()
 export class EthersProviderService implements OnModuleInit {
   private readonly logger = new Logger(EthersProviderService.name);
