@@ -15,7 +15,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22             # Pastikan port didefinisikan (default 22)
+          port: 80             # Pastikan port didefinisikan (default 22)
           timeout: 30s         # Tambah timeout (default biasanya cukup, tapi bisa dicoba)
           command_timeout: 30m # Timeout untuk script yang dijalankan
           debug: true
