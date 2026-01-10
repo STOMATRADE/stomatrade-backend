@@ -7,12 +7,12 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: SSH and deploy to SERVER
         uses: appleboy/ssh-action@master
         with:
-          host: 103.59.160.111 #${{ secrets.VPS_HOST }}
+          host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22             # Pastikan port didefinisikan (default 22)
