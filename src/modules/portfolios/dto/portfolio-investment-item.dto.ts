@@ -16,8 +16,8 @@ export class PortfolioInvestmentItemDto {
   @ApiProperty({ description: 'Collector name', example: 'PT Agro Sejahtera' })
   collectorName: string;
 
-  @ApiProperty({ description: 'Project image URL', example: 'https://ipfs.io/ipfs/Qm...', nullable: true })
-  image: string | null;
+  @ApiProperty({ description: 'Project image URL (returns default image if not available)', example: 'https://ipfs.io/ipfs/Qm...' })
+  image: string;
 
   @ApiProperty({ description: 'Investment amount in IDRX wei', example: '100000' })
   amount: string;
