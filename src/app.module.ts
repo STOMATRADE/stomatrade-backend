@@ -27,6 +27,7 @@ import { RefundsModule } from './modules/refunds/refunds.module';
 import { UserDashboardModule } from './modules/user-dashboard/user-dashboard.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { DomainsModule } from './modules/domains/domains.module';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { DomainsModule } from './modules/domains/domains.module';
       envFilePath: '.env',
     }),
     ScheduleModule.forRoot(),
+    CommonModule,
     PrismaModule,
     BlockchainModule,
     AuthModule,

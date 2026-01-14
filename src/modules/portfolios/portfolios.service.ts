@@ -3,12 +3,16 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PortfolioDetailResponseDto } from './dto/portfolio-detail-response.dto';
 import { PortfolioResponseDto } from './dto/portfolio-response.dto';
 import { PortfolioInvestmentItemDto } from './dto/portfolio-investment-item.dto';
+import { ImageService } from '../../common/services/image.service';
 
 @Injectable()
 export class PortfoliosService {
   private readonly logger = new Logger(PortfoliosService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly imageService: ImageService,
+  ) {}
 
   async getUserPortfolio(userId: string): Promise<PortfolioResponseDto> {
     this.logger.log(`Getting portfolio for user ${userId}`);
@@ -107,7 +111,7 @@ export class PortfoliosService {
           projectName: inv.project.commodity,
           farmerName: inv.project.farmer.name,
           collectorName: inv.project.collector.name,
-          image: imageMap.get(inv.projectId) || null,
+          image: this.imageService.getImageOrDefault(imageMap.get(inv.projectId)),
           amount: inv.amount,
           receiptTokenId: inv.receiptTokenId,
           investedAt: inv.investedAt,
@@ -217,7 +221,7 @@ export class PortfoliosService {
       investors: uniqueInvestors,
       status: project.status,
       fundingPercentage: Math.round(fundingPercentage * 100) / 100,
-      image: file?.url || null,
+      image: this.imageService.getImageOrDefault(file?.url),
       landAddress: project.land.address,
       gradeQuality: null,
       assets: assets,

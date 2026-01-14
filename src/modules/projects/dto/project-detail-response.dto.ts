@@ -94,11 +94,10 @@ export class ProjectDetailResponseDto {
   fundingPercentage: number;
 
   @ApiProperty({
-    description: 'Project image URL',
+    description: 'Project image URL (returns default image if not available)',
     example: 'https://storage.example.com/projects/rice-field.jpg',
-    nullable: true,
   })
-  image: string | null;
+  image: string;
 
   @ApiProperty({
     description: 'Land address',

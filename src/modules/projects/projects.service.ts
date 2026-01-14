@@ -9,6 +9,7 @@ import { ProjectListResponseDto, ProjectListItemDto } from './dto/project-list-r
 import { ProjectDetailResponseDto } from './dto/project-detail-response.dto';
 import { PROJECT_STATUS, Prisma } from '@prisma/client';
 import { StomaTradeContractService } from '../../blockchain/services/stomatrade-contract.service';
+import { ImageService } from '../../common/services/image.service';
 
 @Injectable()
 export class ProjectsService {
@@ -17,6 +18,7 @@ export class ProjectsService {
   constructor(
     private prisma: PrismaService,
     private stomaTradeContract: StomaTradeContractService,
+    private imageService: ImageService,
   ) { }
 
   async create(createProjectDto: CreateProjectDto): Promise<ProjectResponseDto> {
@@ -253,7 +255,7 @@ export class ProjectsService {
           fundingPrice: project.projectSubmission?.maxCrowdFunding || '0',
           investors: uniqueInvestors,
           margin: project.profitShare,
-          image: file?.url || null,
+          image: this.imageService.getImageOrDefault(file?.url),
           status: project.status,
           fundingPercentage: Math.round(fundingPercentage * 100) / 100,
           tokenId: project.tokenId,
@@ -336,7 +338,7 @@ export class ProjectsService {
       investors: uniqueInvestors,
       status: project.status,
       fundingPercentage: Math.round(fundingPercentage * 100) / 100,
-      image: file?.url || null,
+      image: this.imageService.getImageOrDefault(file?.url),
       landAddress: project.land.address,
       gradeQuality: null,
       tokenId: project.tokenId,
