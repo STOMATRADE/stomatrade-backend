@@ -3,8 +3,15 @@ import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StomaTradeContractService } from '../../blockchain/services/stomatrade-contract.service';
+import { ImageService } from '../../common/services/image.service';
 import { mockPrismaService } from '../../test/mocks/prisma.mock';
 import { PROJECT_STATUS } from '@prisma/client';
+
+const mockImageService = {
+  getImageOrDefault: jest.fn((url) => url || 'https://default-image.com/404.png'),
+  getDefaultImageUrl: jest.fn(() => 'https://default-image.com/404.png'),
+  refreshDefaultImage: jest.fn(),
+};
 
 describe('ProjectsService', () => {
   let service: ProjectsService;
@@ -65,6 +72,10 @@ describe('ProjectsService', () => {
         {
           provide: StomaTradeContractService,
           useValue: mockStomaTradeContract,
+        },
+        {
+          provide: ImageService,
+          useValue: mockImageService,
         },
       ],
     }).compile();

@@ -7123,3 +7123,260 @@ await fetch(`${API_URL}/investments/portfolio/recalculate`, {
 *Version: 1.14.0*
 *Contributors: Production Readiness Team*
 
+---
+
+## 🔄 Version 1.15.0 - Transaction Builder Pattern for Investments
+
+### 📋 Overview
+
+Implementasi **Transaction Builder Pattern** untuk modul investments, mengubah arsitektur dari eksekusi transaksi oleh platform wallet menjadi penyedia data transaksi untuk frontend. Perubahan ini memungkinkan user mengeksekusi transaksi investasi langsung dari wallet mereka sendiri.
+
+### 🎯 Problem Statement
+
+**Sebelumnya:**
+- Backend mengeksekusi transaksi investasi melalui platform wallet
+- Mengakibatkan error karena:
+  - Platform wallet tidak memiliki approval untuk IDRX token
+  - Platform wallet bukan pemilik token yang seharusnya diinvestasikan
+  - Transaksi di-revert oleh smart contract
+
+**Solusi:**
+- Backend sebagai "Transaction Builder" - menyediakan hex encoded data
+- Frontend mengeksekusi transaksi menggunakan wallet user
+- Cron job (indexer) membuat Investment record berdasarkan event on-chain
+
+### 🛠️ Changes Made
+
+#### 1. New DTO (`build-transaction.dto.ts`)
+
+```typescript
+// Request DTO
+export class BuildTransactionDto {
+  projectId: string;      // Project ID database
+  amount: string;         // Amount dalam format bersih
+  investorAddress: string; // Wallet address investor
+}
+
+// Response DTO
+export class BuildTransactionResponseDto {
+  approval: TransactionDataDto;   // Data untuk approve IDRX
+  invest: TransactionDataDto;     // Data untuk fungsi invest
+  idrxAddress: string;            // Alamat kontrak IDRX
+  stomaTradeAddress: string;      // Alamat kontrak StomaTrade
+  amountWei: string;              // Amount dalam wei
+  amountClean: string;            // Amount bersih
+  chainId: number;                // Network chain ID
+  project: ProjectInfoDto;        // Info project
+}
+```
+
+#### 2. Contract Service Updates (`stomatrade-contract.service.ts`)
+
+Penambahan methods:
+- `encodeApproveData(spenderAddress, amount)` - Encode ERC20 approve function
+- `encodeInvestData(cid, projectId, amount)` - Encode invest function
+- `getStomaTradeAddress()` - Get contract address
+- `getIdrxTokenAddress()` - Get IDRX token address
+- `getChainId()` - Get blockchain chain ID
+
+#### 3. Investments Service Updates (`investments.service.ts`)
+
+Penambahan method `buildTransactionData()`:
+- Validasi project exists dan active on-chain
+- Encode approval transaction data
+- Encode invest transaction data
+- Return lengkap transaction info untuk frontend
+
+#### 4. Controller Updates (`investments.controller.ts`)
+
+**New Endpoint:**
+```
+POST /investments/build-transaction
+```
+- Returns hex encoded transaction data
+- Frontend executes using user's wallet
+- Investment record created by indexer
+
+**Deprecated Endpoint:**
+```
+POST /investments (DEPRECATED)
+```
+- Marked with deprecation warnings
+- Still functional for backward compatibility
+
+#### 5. Cron Service Updates (`cron.service.ts`)
+
+Updated `handleInvestedEvent()`:
+- Creates Investment record from blockchain event
+- Finds/creates user by wallet address
+- Maps project by on-chain tokenId
+- Updates user portfolio automatically
+
+### 📊 Investment Flow (New Architecture)
+
+```
+┌─────────────┐    1. Request tx data    ┌─────────────┐
+│   Frontend  │ ────────────────────────>│   Backend   │
+│             │                          │             │
+│             │    2. Return tx data     │             │
+│             │ <────────────────────────│             │
+│             │                          │             │
+│  3. Execute │                          │             │
+│  approval() │ ──────────┐              │             │
+│             │           │              │             │
+│  4. Execute │           │              │             │
+│  invest()   │ ──────────│              │             │
+└─────────────┘           │              └─────────────┘
+                          │
+                          v
+                  ┌───────────────┐
+                  │   Blockchain  │
+                  │  (StomaTrade) │
+                  │               │
+                  │ Invested Event│
+                  └───────┬───────┘
+                          │
+                          │ 5. Cron indexes event
+                          v
+                  ┌───────────────┐
+                  │    Backend    │
+                  │  (Cron Job)   │
+                  │               │
+                  │ Create record │
+                  └───────────────┘
+```
+
+### 📁 Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/modules/investments/dto/build-transaction.dto.ts` | New file - DTOs |
+| `src/blockchain/services/stomatrade-contract.service.ts` | Added encode methods |
+| `src/modules/investments/investments.service.ts` | Added buildTransactionData() |
+| `src/modules/investments/investments.controller.ts` | New endpoint + deprecation |
+| `src/modules/cron/cron.service.ts` | Create Investment from event |
+| `.env.example` | Fixed env variable name |
+
+### 🔑 Environment Variables
+
+Pastikan environment variable berikut sudah dikonfigurasi:
+
+```env
+# IDRX Token contract address
+IDRX_TOKEN_ADDRESS=0x...
+
+# Existing variables
+DATABASE_URL=...
+PLATFORM_WALLET_PRIVATE_KEY=...
+```
+
+### 🧪 API Usage Example
+
+**Request:**
+```bash
+POST /investments/build-transaction
+Authorization: Bearer <jwt_token>
+Content-Type: application/json
+
+{
+  "projectId": "uuid-project-id",
+  "amount": "10000",
+  "investorAddress": "0x1234567890abcdef1234567890abcdef12345678"
+}
+```
+
+**Response:**
+```json
+{
+  "approval": {
+    "to": "0x9B8C75890676574c00cc992FD48F73da2A9272db",
+    "data": "0x095ea7b3000000000000000000000000..."
+  },
+  "invest": {
+    "to": "0x08A2cefa99A8848cD3aC34620f49F115587dcE28",
+    "data": "0x..."
+  },
+  "idrxAddress": "0x9B8C75890676574c00cc992FD48F73da2A9272db",
+  "stomaTradeAddress": "0x08A2cefa99A8848cD3aC34620f49F115587dcE28",
+  "amountWei": "10000000000000000000000",
+  "amountClean": "10000",
+  "chainId": 5003,
+  "project": {
+    "id": "uuid-project-id",
+    "name": "Rice Farming Project",
+    "tokenId": 5,
+    "farmerName": "Ahmad Hidayat",
+    "commodity": "Rice"
+  }
+}
+```
+
+### 📝 Frontend Integration Guide
+
+```javascript
+// 1. Get transaction data from backend
+const response = await fetch('/investments/build-transaction', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    projectId: 'uuid-project-id',
+    amount: '10000',
+    investorAddress: walletAddress
+  })
+});
+const txData = await response.json();
+
+// 2. Execute approval transaction
+const approveTx = await wallet.sendTransaction({
+  to: txData.approval.to,
+  data: txData.approval.data
+});
+await approveTx.wait();
+
+// 3. Execute invest transaction
+const investTx = await wallet.sendTransaction({
+  to: txData.invest.to,
+  data: txData.invest.data
+});
+await investTx.wait();
+
+// Investment record will be created automatically by indexer
+```
+
+### ✅ Checklist
+
+- [x] DTO build-transaction.dto.ts created
+- [x] Encode methods added to contract service
+- [x] buildTransactionData() method implemented
+- [x] New endpoint added to controller
+- [x] Old endpoint marked as deprecated
+- [x] Cron job updated to create Investment records
+- [x] Build successful
+- [x] Server starts without errors
+- [x] Documentation updated
+
+### 📦 Summary
+
+**Version 1.15.0 Achievements:**
+- ✅ Transaction Builder pattern implemented
+- ✅ Frontend can execute transactions with user wallet
+- ✅ Automatic Investment record creation via indexer
+- ✅ Backward compatibility maintained
+- ✅ Proper deprecation warnings
+- ✅ Comprehensive documentation
+
+**Impact:**
+- Resolves transaction revert issues
+- Users invest with their own wallet
+- Improved security (no token approval needed for platform)
+- Cleaner separation of concerns
+
+---
+
+*Last Updated: January 19, 2026*
+*Version: 1.15.0*
+*Contributors: Investment Module Team*
+

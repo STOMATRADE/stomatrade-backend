@@ -3,6 +3,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BlockchainEventService } from '../../blockchain/services/blockchain-event.service';
 import { EthersProviderService } from '../../blockchain/services/ethers-provider.service';
+import { fromWei } from '../../common/utils/wei-converter.util';
+import { ROLES } from '@prisma/client';
 
 @Injectable()
 export class CronService {
@@ -282,12 +284,14 @@ export class CronService {
   private async handleInvestedEvent(event: any) {
     const { args, transactionHash, blockNumber } = event;
 
-    const existing = await this.prisma.blockchainTransaction.findUnique({
+    // Check if blockchain transaction already recorded
+    const existingTx = await this.prisma.blockchainTransaction.findUnique({
       where: { transactionHash },
     });
 
-    if (existing) return;
+    if (existingTx) return;
 
+    // Create blockchain transaction record
     await this.prisma.blockchainTransaction.create({
       data: {
         transactionHash,
@@ -298,6 +302,78 @@ export class CronService {
         eventData: this.serializeEventArgs(args),
       },
     });
+
+    // Extract event data
+    const projectTokenId = Number(args.idProject);
+    const investorAddress = args.investor?.toLowerCase();
+    const amountWei = args.amount;
+    const receiptTokenId = Number(args.receiptTokenId);
+
+    if (!investorAddress) {
+      this.logger.error('Invested event missing investor address');
+      return;
+    }
+
+    // Find project by blockchain tokenId
+    const project = await this.prisma.project.findFirst({
+      where: { tokenId: projectTokenId, deleted: false },
+    });
+
+    if (!project) {
+      this.logger.warn(`Project with tokenId ${projectTokenId} not found in database. Investment record will not be created.`);
+      return;
+    }
+
+    // Find or create user by wallet address
+    let user = await this.prisma.user.findUnique({
+      where: { walletAddress: investorAddress },
+    });
+
+    if (!user) {
+      // Create new user with INVESTOR role
+      user = await this.prisma.user.create({
+        data: {
+          walletAddress: investorAddress,
+          role: ROLES.INVESTOR,
+        },
+      });
+      this.logger.log(`Created new investor user for wallet: ${investorAddress}`);
+    }
+
+    // Check if investment record already exists
+    const existingInvestment = await this.prisma.investment.findFirst({
+      where: {
+        transactionHash,
+        deleted: false,
+      },
+    });
+
+    if (existingInvestment) {
+      this.logger.log(`Investment record already exists for tx: ${transactionHash}`);
+      return;
+    }
+
+    // Convert amount from wei to clean format for database storage
+    const amountClean = fromWei(BigInt(amountWei.toString())).toString();
+
+    // Create investment record
+    const investment = await this.prisma.investment.create({
+      data: {
+        userId: user.id,
+        projectId: project.id,
+        amount: amountClean,
+        receiptTokenId,
+        transactionHash,
+        blockNumber,
+      },
+    });
+
+    this.logger.log(
+      `Created investment record: ${investment.id} for user ${user.id} in project ${project.id} (amount: ${amountClean})`,
+    );
+
+    // Update user portfolio
+    await this.updateUserPortfolio(user.id);
   }
 
   private async handleProfitDepositedEvent(event: any) {

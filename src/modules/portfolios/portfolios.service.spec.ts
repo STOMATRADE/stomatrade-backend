@@ -2,7 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { PortfoliosService } from './portfolios.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ImageService } from '../../common/services/image.service';
 import { mockPrismaService } from '../../test/mocks/prisma.mock';
+
+const mockImageService = {
+  getImageOrDefault: jest.fn((url) => url || 'https://default-image.com/404.png'),
+  getDefaultImageUrl: jest.fn(() => 'https://default-image.com/404.png'),
+  refreshDefaultImage: jest.fn(),
+};
 
 describe('PortfoliosService', () => {
   let service: PortfoliosService;
@@ -74,6 +81,10 @@ describe('PortfoliosService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: ImageService,
+          useValue: mockImageService,
         },
       ],
     }).compile();
