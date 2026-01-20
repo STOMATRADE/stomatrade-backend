@@ -13,6 +13,10 @@ import {
   InvestmentListResponseDto,
   ProjectStatsResponseDto,
 } from './dto/investment-response.dto';
+import {
+  BuildTransactionDto,
+  BuildTransactionResponseDto,
+} from './dto/build-transaction.dto';
 import { toWei } from '../../common/utils/wei-converter.util';
 
 @Injectable()
@@ -364,5 +368,107 @@ export class InvestmentsService {
     }
 
     this.logger.log(`Recalculated portfolios for ${users.length} users`);
+  }
+
+  /**
+   * Build transaction data for investment
+   * Returns hex encoded data for approval and invest transactions
+   * Frontend will execute these transactions using user's wallet
+   */
+  async buildTransactionData(dto: BuildTransactionDto): Promise<BuildTransactionResponseDto> {
+    this.logger.log(
+      `Building transaction data for project ${dto.projectId}, amount ${dto.amount}`,
+    );
+
+    // Validate project exists and is active
+    const project = await this.prisma.project.findUnique({
+      where: { id: dto.projectId },
+      include: {
+        farmer: true,
+        projectSubmission: true,
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${dto.projectId} not found`);
+    }
+
+    if (!project.tokenId) {
+      throw new BadRequestException(
+        'Project has not been minted on blockchain yet',
+      );
+    }
+
+    // Verify project exists and is active on blockchain
+    try {
+      const projectTokenId = BigInt(project.tokenId);
+      const blockchainProject = await this.stomaTradeContract.getProject(projectTokenId);
+
+      const status = Number(blockchainProject.status);
+
+      if (status !== 0) {
+        throw new BadRequestException(
+          `Project is not active on blockchain (status: ${status})`,
+        );
+      }
+
+      this.logger.log(`Project ${projectTokenId} verified on blockchain - Status: ACTIVE`);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error(`Failed to verify project on blockchain: ${error.message}`);
+      throw new BadRequestException(
+        `Invalid project on blockchain: ${error.message}`,
+      );
+    }
+
+    // Convert amount to wei
+    const amountWei = toWei(dto.amount);
+
+    // Get contract addresses
+    const stomaTradeAddress = this.stomaTradeContract.getStomaTradeAddress();
+    const idrxAddress = this.stomaTradeContract.getIdrxTokenAddress();
+    const chainId = this.stomaTradeContract.getChainId();
+
+    // Encode approval transaction data (approve StomaTrade to spend IDRX)
+    const approvalData = this.stomaTradeContract.encodeApproveData(
+      stomaTradeAddress,
+      amountWei,
+    );
+
+    // Encode invest transaction data
+    // CID can be empty string for now, or derived from project data
+    const cid = '';
+    const investData = this.stomaTradeContract.encodeInvestData(
+      cid,
+      BigInt(project.tokenId),
+      amountWei,
+    );
+
+    this.logger.log(`Transaction data built successfully for project ${dto.projectId}`);
+
+    return {
+      approval: {
+        to: idrxAddress,
+        data: approvalData,
+      },
+      invest: {
+        to: stomaTradeAddress,
+        data: investData,
+      },
+      idrxAddress,
+      stomaTradeAddress,
+      amountWei: amountWei.toString(),
+      amountClean: dto.amount,
+      chainId,
+      project: {
+        id: project.id,
+        name: project.name,
+        tokenId: project.tokenId,
+        farmerName: project.farmer?.name || 'N/A',
+        commodity: project.commodity,
+      },
+    };
   }
 }

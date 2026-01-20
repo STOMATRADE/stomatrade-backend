@@ -12,6 +12,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@ne
 import { InvestmentsService } from './investments.service';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
 import { InvestmentResponseDto } from './dto/investment-response.dto';
+import { BuildTransactionDto, BuildTransactionResponseDto } from './dto/build-transaction.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -23,12 +24,20 @@ import { ROLES } from '@prisma/client';
 export class InvestmentsController {
   constructor(private readonly investmentsService: InvestmentsService) {}
 
+  /**
+   * @deprecated Use POST /investments/build-transaction instead.
+   * This endpoint executes transactions via platform wallet which causes issues.
+   * The new endpoint returns transaction data for frontend to execute with user's wallet.
+   */
   @Roles(ROLES.INVESTOR)
   @Post()
   @ApiOperation({
-    summary: 'Create an investment in a project (Investor only)',
+    summary: '[DEPRECATED] Create an investment in a project (Investor only)',
     description:
+      '⚠️ DEPRECATED: This endpoint executes transactions via platform wallet which may fail. ' +
+      'Use POST /investments/build-transaction instead to get transaction data for frontend execution.\n\n' +
       'Investor invests in a project and automatically receives a receipt NFT from the blockchain',
+    deprecated: true,
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -49,6 +58,39 @@ export class InvestmentsController {
   })
   create(@Body() dto: CreateInvestmentDto): Promise<InvestmentResponseDto> {
     return this.investmentsService.create(dto);
+  }
+
+  @Roles(ROLES.INVESTOR)
+  @Post('build-transaction')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Build transaction data for investment (Investor only)',
+    description:
+      'Returns hex encoded transaction data for IDRX approval and invest function calls. ' +
+      'Frontend should execute these transactions sequentially using the user wallet:\n' +
+      '1. First execute the approval transaction to approve IDRX spending\n' +
+      '2. Then execute the invest transaction to invest in the project\n\n' +
+      'The investment record will be created automatically when the Invested event is indexed by the cron job.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Transaction data built successfully',
+    type: BuildTransactionResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Project not minted or not active on blockchain',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Project not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Investor role required',
+  })
+  buildTransaction(@Body() dto: BuildTransactionDto): Promise<BuildTransactionResponseDto> {
+    return this.investmentsService.buildTransactionData(dto);
   }
 
   @Roles(ROLES.ADMIN)

@@ -1,12 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import { EthersProviderService } from './ethers-provider.service';
 import { PlatformWalletService } from './platform-wallet.service';
 import { TransactionService, TransactionResult } from './transaction.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 
-// Based on smart contract `projects` mapping
 export interface ProjectData {
   id: bigint;
   idToken: bigint;
@@ -16,34 +14,30 @@ export interface ProjectData {
   totalKilos: bigint;
   profitPerKillos: bigint;
   sharedProfit: bigint;
-  status: number; // ProjectStatus enum
+  status: number;
 }
 
-// Based on smart contract `contribution` mapping
 export interface ContributionData {
   id: bigint;
   idToken: bigint;
   idProject: bigint;
   investor: string;
   amount: bigint;
-  status: number; // InvestmentStatus enum
+  status: number;
 }
 
-// Return type for getAdminRequiredDeposit
 export interface AdminRequiredDeposit {
   totalPrincipal: bigint;
   totalInvestorProfit: bigint;
   totalRequired: bigint;
 }
 
-// Return type for getInvestorReturn
 export interface InvestorReturn {
   principal: bigint;
   profit: bigint;
   totalReturn: bigint;
 }
 
-// Return type for getProjectProfitBreakdown
 export interface ProjectProfitBreakdown {
   grossProfit: bigint;
   investorProfitPool: bigint;
@@ -56,9 +50,11 @@ export class StomaTradeContractService implements OnModuleInit {
   private contract: ethers.Contract;
   private stomatradeAddress: string;
   private stomatradeAbi: any;
+  private idrxTokenAddress: string;
+  private idrxTokenAbi: any;
+  private chainId: number;
 
   constructor(
-    private readonly configService: ConfigService,
     private readonly providerService: EthersProviderService,
     private readonly walletService: PlatformWalletService,
     private readonly transactionService: TransactionService,
@@ -91,7 +87,37 @@ export class StomaTradeContractService implements OnModuleInit {
     }
     this.stomatradeAbi = JSON.parse(project.abi.replace(/\\"/g, '"'));
 
-    // Wait for wallet service to initialize first
+    const idrxProject = await this.prisma.appProject.findFirst({
+      where: {
+        name: 'IDRXTOKEN',
+        deleted: false,
+      },
+    });
+
+    if (!idrxProject) {
+      throw new Error(
+        'IDRXTOKEN AppProject configuration not found in database. Please ensure IDRXTOKEN record is created in AppProject table.',
+      );
+    }
+
+    if (!idrxProject.contractAddress) {
+      throw new Error(
+        'Contract address not found in IDRXTOKEN AppProject configuration',
+      );
+    }
+    this.idrxTokenAddress = idrxProject.contractAddress;
+
+    if (idrxProject.abi) {
+      this.idrxTokenAbi = JSON.parse(idrxProject.abi.replace(/\\"/g, '"'));
+    }
+
+    if (project.chainId) {
+      const chainIdMatch = project.chainId.match(/eip155:(\d+)/);
+      if (chainIdMatch) {
+        this.chainId = parseInt(chainIdMatch[1], 10);
+      }
+    }
+
     await this.walletService.waitForInit();
 
     const wallet = this.walletService.getWallet();
@@ -104,6 +130,8 @@ export class StomaTradeContractService implements OnModuleInit {
     this.logger.log(
       `StomaTrade contract initialized at: ${this.stomatradeAddress}`,
     );
+    this.logger.log(`IDRX token address: ${this.idrxTokenAddress}`);
+    this.logger.log(`Chain ID: ${this.chainId}`);
   }
 
   getContract(): ethers.Contract {
@@ -117,34 +145,23 @@ export class StomaTradeContractService implements OnModuleInit {
     return this.stomatradeAddress;
   }
 
-  /**
-   * Encode raw calldata for a contract function using the loaded ABI.
-   * Useful for frontends that need hex data without sending a transaction.
-   */
   encodeFunctionData(functionName: string, args: unknown[]): string {
     const contract = this.getContract();
     return contract.interface.encodeFunctionData(functionName, args);
   }
 
-  /**
-   * Extract CID from various IPFS URL formats
-   */
   private extractCID(url: string): string {
     if (!url) return '';
 
-    // ipfs://QmXxx... → QmXxx...
     if (url.startsWith('ipfs://')) {
       return url.replace('ipfs://', '');
     }
 
-    // https://ipfs.io/ipfs/QmXxx... → QmXxx...
-    // https://gateway.pinata.cloud/ipfs/QmXxx... → QmXxx...
     const match = url.match(/\/ipfs\/([a-zA-Z0-9]+)/);
     if (match) {
       return match[1];
     }
 
-    // If already a CID or unknown format, return as is
     return url;
   }
 
@@ -182,9 +199,6 @@ export class StomaTradeContractService implements OnModuleInit {
     ]);
   }
 
-  /**
-   * Get the signer address
-   */
   async getSignerAddress(): Promise<string> {
     const runner = this.contract.runner;
     if (runner && 'getAddress' in runner) {
@@ -193,11 +207,6 @@ export class StomaTradeContractService implements OnModuleInit {
     return '';
   }
 
-  // ============ WRITE FUNCTIONS ============
-
-  /**
-   * Create a new project on the blockchain
-   */
   async createProject(
     cid: string,
     valueProject: bigint,
@@ -215,9 +224,6 @@ export class StomaTradeContractService implements OnModuleInit {
     );
   }
 
-  /**
-   * Add Farmer NFT (called by platform after approval)
-   */
   async addFarmer(
     cid: string,
     idCollector: string,
@@ -234,10 +240,6 @@ export class StomaTradeContractService implements OnModuleInit {
     );
   }
 
-  /**
-   * Investor invests in a project
-   * Note: This should be called by the investor's wallet, not the platform wallet
-   */
   async invest(
     cid: string,
     projectId: bigint,
@@ -252,11 +254,6 @@ export class StomaTradeContractService implements OnModuleInit {
     );
   }
 
-  /**
-   * UPDATED: Project owner withdraws crowdfunding proceeds
-   * This was previously called "depositProfit" but actual contract function is "withdrawProject"
-   * The owner calls this after project is finished to withdraw the raised funds
-   */
   async withdrawProject(projectId: bigint): Promise<TransactionResult> {
     this.logger.log(`Withdrawing project ${projectId} funds`);
 
@@ -267,11 +264,6 @@ export class StomaTradeContractService implements OnModuleInit {
     );
   }
 
-  /**
-   * UPDATED: Investor claims profit/returns from a project
-   * Contract function is "claimWithdraw", not "claimProfit"
-   * Note: This should be called by the investor's wallet, not the platform wallet
-   */
   async claimWithdraw(projectId: bigint): Promise<TransactionResult> {
     this.logger.log(`Claiming withdraw for project ${projectId}`);
 
@@ -282,10 +274,6 @@ export class StomaTradeContractService implements OnModuleInit {
     );
   }
 
-  /**
-   * UPDATED: Admin marks project as refundable
-   * Contract function is "refundProject", not "refundable"
-   */
   async refundProject(projectId: bigint): Promise<TransactionResult> {
     this.logger.log(`Marking project ${projectId} for refund`);
 
@@ -296,10 +284,6 @@ export class StomaTradeContractService implements OnModuleInit {
     );
   }
 
-  /**
-   * Investor claims refund from a project
-   * Note: This should be called by the investor's wallet, not the platform wallet
-   */
   async claimRefund(projectId: bigint): Promise<TransactionResult> {
     this.logger.log(`Claiming refund for project ${projectId}`);
 
@@ -310,10 +294,6 @@ export class StomaTradeContractService implements OnModuleInit {
     );
   }
 
-  /**
-   * UPDATED: Close/finish project
-   * Contract function is "closeProject", not "closeCrowdFunding"
-   */
   async closeProject(projectId: bigint): Promise<TransactionResult> {
     this.logger.log(`Closing project ${projectId}`);
 
@@ -324,10 +304,6 @@ export class StomaTradeContractService implements OnModuleInit {
     );
   }
 
-  /**
-   * NEW: Finish project (marks project as completed)
-   * This is a separate action from closing crowdfunding
-   */
   async finishProject(projectId: bigint): Promise<TransactionResult> {
     this.logger.log(`Finishing project ${projectId}`);
 
@@ -338,12 +314,6 @@ export class StomaTradeContractService implements OnModuleInit {
     );
   }
 
-  // ============ READ FUNCTIONS ============
-
-  /**
-   * UPDATED: Get project data using projects mapping
-   * Contract uses mapping, not a getter function
-   */
   async getProject(projectId: bigint): Promise<ProjectData> {
     this.logger.log(`Getting project ${projectId} data`);
 
@@ -366,10 +336,6 @@ export class StomaTradeContractService implements OnModuleInit {
     };
   }
 
-  /**
-   * UPDATED: Get investor contribution using contribution mapping
-   * Contract uses mapping, not a getter function
-   */
   async getContribution(
     projectId: bigint,
     investor: string,
@@ -392,10 +358,6 @@ export class StomaTradeContractService implements OnModuleInit {
     };
   }
 
-  /**
-   * NEW: Get admin required deposit for project completion
-   * Returns total principal, investor profit, and total required
-   */
   async getAdminRequiredDeposit(projectId: bigint): Promise<AdminRequiredDeposit> {
     this.logger.log(`Getting admin required deposit for project ${projectId}`);
 
@@ -412,10 +374,6 @@ export class StomaTradeContractService implements OnModuleInit {
     };
   }
 
-  /**
-   * NEW: Get investor return calculation
-   * Returns principal, profit, and total return for an investor
-   */
   async getInvestorReturn(
     projectId: bigint,
     investor: string,
@@ -435,10 +393,6 @@ export class StomaTradeContractService implements OnModuleInit {
     };
   }
 
-  /**
-   * NEW: Get project profit breakdown
-   * Returns gross profit, investor profit pool, and platform profit
-   */
   async getProjectProfitBreakdown(projectId: bigint): Promise<ProjectProfitBreakdown> {
     this.logger.log(`Getting profit breakdown for project ${projectId}`);
 
@@ -455,9 +409,6 @@ export class StomaTradeContractService implements OnModuleInit {
     };
   }
 
-  /**
-   * Get token URI for an NFT
-   */
   async getTokenURI(tokenId: bigint): Promise<string> {
     this.logger.log(`Getting token URI for token ${tokenId}`);
 
@@ -468,68 +419,59 @@ export class StomaTradeContractService implements OnModuleInit {
     );
   }
 
-  // ============ BACKWARD COMPATIBILITY METHODS ============
-  // These methods maintain backward compatibility with existing services
-
-  /**
-   * @deprecated Use withdrawProject() instead
-   * Backward compatibility: depositProfit now calls withdrawProject
-   */
   async depositProfit(projectId: bigint, _amount?: bigint): Promise<TransactionResult> {
     this.logger.warn('depositProfit() is deprecated, use withdrawProject() instead');
     return this.withdrawProject(projectId);
   }
 
-  /**
-   * @deprecated Use claimWithdraw() instead
-   * Backward compatibility: claimProfit now calls claimWithdraw
-   */
   async claimProfit(projectId: bigint): Promise<TransactionResult> {
     this.logger.warn('claimProfit() is deprecated, use claimWithdraw() instead');
     return this.claimWithdraw(projectId);
   }
 
-  /**
-   * @deprecated Use refundProject() instead
-   * Backward compatibility: markRefundable now calls refundProject
-   */
   async markRefundable(projectId: bigint): Promise<TransactionResult> {
     this.logger.warn('markRefundable() is deprecated, use refundProject() instead');
     return this.refundProject(projectId);
   }
 
-  /**
-   * @deprecated Use closeProject() instead
-   * Backward compatibility: closeCrowdFunding now calls closeProject
-   */
   async closeCrowdFunding(projectId: bigint): Promise<TransactionResult> {
     this.logger.warn('closeCrowdFunding() is deprecated, use closeProject() instead');
     return this.closeProject(projectId);
   }
 
-  /**
-   * @deprecated Use getProject() with new ProjectData interface instead
-   * Backward compatibility: Returns legacy format
-   */
   async getProfitPool(_projectId: bigint): Promise<bigint> {
     this.logger.warn('getProfitPool() is deprecated and not available in contract');
     throw new Error('getProfitPool() is not available. Use getProjectProfitBreakdown() instead');
   }
 
-  /**
-   * @deprecated Use getInvestorReturn() instead
-   * Backward compatibility: Returns only amount (principal)
-   */
   async getClaimedProfit(_projectId: bigint, _investor: string): Promise<bigint> {
     this.logger.warn('getClaimedProfit() is deprecated and not available in contract');
     throw new Error('getClaimedProfit() is not available. Use getInvestorReturn() instead');
   }
 
-  // ============ EVENT PARSING ============
+  encodeApproveData(spenderAddress: string, amount: bigint): string {
+    const erc20Interface = new ethers.Interface([
+      'function approve(address spender, uint256 amount) returns (bool)',
+    ]);
+    return erc20Interface.encodeFunctionData('approve', [spenderAddress, amount]);
+  }
 
-  /**
-   * Parse event logs from transaction receipt
-   */
+  encodeInvestData(cid: string, projectId: bigint, amount: bigint): string {
+    return this.encodeFunctionData('invest', [cid, projectId, amount]);
+  }
+
+  getStomaTradeAddress(): string {
+    return this.stomatradeAddress;
+  }
+
+  getIdrxTokenAddress(): string {
+    return this.idrxTokenAddress;
+  }
+
+  getChainId(): number {
+    return this.chainId;
+  }
+
   parseEventLogs(receipt: ethers.TransactionReceipt): ethers.EventLog[] {
     const parsedLogs: ethers.EventLog[] = [];
 
@@ -543,17 +485,12 @@ export class StomaTradeContractService implements OnModuleInit {
         if (parsed) {
           parsedLogs.push(log as ethers.EventLog);
         }
-      } catch (error) {
-        // Ignore logs that can't be parsed (may be from other contracts)
-      }
+      } catch (error) {}
     }
 
     return parsedLogs;
   }
 
-  /**
-   * Get specific event from transaction receipt
-   */
   getEventFromReceipt(
     receipt: ethers.TransactionReceipt,
     eventName: string,
